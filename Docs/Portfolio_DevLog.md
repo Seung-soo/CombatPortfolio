@@ -28,3 +28,32 @@ C++ 중심의 3인칭 액션 전투 포트폴리오를 제작한다.
 ### Notes
 
 템플릿 프로젝트를 사용하지 않고 직접 구조를 구성함으로써 입력, 캐릭터, 카메라, 게임모드의 동작 원리를 단계적으로 학습할 수 있도록 했다.
+
+
+
+
+
+## Episode 2
+
+### Goal
+
+Blank C++ 프로젝트에서 직접 플레이어 캐릭터, 플레이어 컨트롤러, 게임모드를 구성하고 Enhanced Input 기반 이동/카메라 입력을 구현한다.
+
+### Completed
+
+- Created `ACombatPlayerCharacter`
+- Added SpringArm and Camera components in C++
+- Configured basic CharacterMovement settings
+- Created `ACombatPlayerController`
+- Registered Enhanced Input Mapping Context through PlayerController
+- Created `ACombatGameMode`
+- Created `IA_Move`, `IA_Look`, and `IMC_Player`
+- Created Blueprint subclasses for Character, PlayerController, and GameMode
+- Set default pawn and controller through GameMode
+- Verified WASD movement and mouse look in `L_CombatSandbox`
+
+### Technical Notes
+
+- Character is used as the player body because it provides capsule collision, mesh support, and built-in movement logic.
+- PlayerController owns the input mapping registration because it represents the local player's control layer.
+- Core movement logic is implemented in C++, while asset references are assigned in Blueprint.
