@@ -11,6 +11,14 @@ class USpringArmComponent;
 class UInputAction;
 struct FInputActionValue;
 
+UENUM(BlueprintType)
+enum class ECombatMovementState : uint8
+{
+	Walking UMETA(DisplayName = "Walking"),
+	Running UMETA(DisplayName = "Running"),
+	Sprinting UMETA(DisplayName = "Sprinting"),
+};
+
 UCLASS()
 class COMBATPORTFOLIO_API ACombatPlayerCharacter : public ACharacter
 {
@@ -24,6 +32,8 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
+	virtual void Tick(float DeltaTime ) override;
+	
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -34,13 +44,61 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FollowCamera;
 
+private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> MoveAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> LookAction;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> WalkAction;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> SprintAction;
+	
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
+	float WalkSpeed = 250.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
+	float RunSpeed = 500.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
+	float SprintSpeed = 700.0f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
+	ECombatMovementState MovementState = ECombatMovementState::Running;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
+	bool bWantsToWalk = false;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
+	bool bWantsToSprint = false;
+	
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+	float LookSensitivityX = 1.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+	float LookSensitivityY = 1.0f;
+	
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug", meta = (AllowPrivateAccess = "true"))
+	bool bShowMovementDebug = true;
 
 private:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	
+	void StartWalk();
+	void StopWalk();
+	
+	void StartSprint();
+	void StopSprint();
+	
+	void UpdateMovementState();
+	void UpdateMovementSpeed();
+	
+	void PrintMovementDebug() const;
 };

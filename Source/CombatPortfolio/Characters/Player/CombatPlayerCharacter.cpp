@@ -13,7 +13,7 @@
 ACombatPlayerCharacter::ACombatPlayerCharacter()
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
 
@@ -23,7 +23,7 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
-	GetCharacterMovement()->MaxWalkSpeed = 500.0f;
+	GetCharacterMovement()->MaxWalkSpeed = RunSpeed;
 	GetCharacterMovement()->JumpZVelocity = 700.0f;
 	GetCharacterMovement()->AirControl = 0.35f;
 
@@ -42,6 +42,15 @@ void ACombatPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	
+	PrintMovementDebug();
 }
 
 // Called to bind functionality to input
@@ -67,6 +76,19 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Look);
 	}
 	
+	if (nullptr != WalkAction)
+	{
+		EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartWalk);
+		EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::StopWalk);
+		EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Canceled, this, &ACombatPlayerCharacter::StopWalk);
+	}
+	
+	if (nullptr != SprintAction)
+	{
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartSprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::StopSprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &ACombatPlayerCharacter::StopSprint);
+	}
 }
 
 void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
@@ -92,7 +114,136 @@ void ACombatPlayerCharacter::Look(const FInputActionValue& Value)
 {
 	const FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	AddControllerYawInput(LookAxisVector.X);
-	AddControllerPitchInput(-LookAxisVector.Y);
+	AddControllerYawInput(LookAxisVector.X * LookSensitivityX);
+	AddControllerPitchInput(-LookAxisVector.Y * LookSensitivityY);
+}
+
+void ACombatPlayerCharacter::StartWalk()
+{
+	bWantsToWalk = true;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::StopWalk()
+{
+	bWantsToWalk = false;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::StartSprint()
+{
+	bWantsToSprint = true;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::StopSprint()
+{
+	bWantsToSprint = false;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::UpdateMovementState()
+{
+	if (true == bWantsToWalk)
+	{
+		MovementState = ECombatMovementState::Walking;
+		return;
+	}
+	
+	if (true == bWantsToSprint)
+	{
+		MovementState = ECombatMovementState::Sprinting;
+		return;
+	}
+	
+	MovementState = ECombatMovementState::Running;
+}
+
+void ACombatPlayerCharacter::UpdateMovementSpeed()
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr == MovementComponent)
+	{
+		return;
+	}
+	
+	switch (MovementState)
+	{
+	case ECombatMovementState::Walking:
+		MovementComponent->MaxWalkSpeed = WalkSpeed;
+		break;
+	case ECombatMovementState::Running:
+		MovementComponent->MaxWalkSpeed = RunSpeed;
+		break;
+	case ECombatMovementState::Sprinting:
+		MovementComponent->MaxWalkSpeed = SprintSpeed;
+		break;
+	default:
+		MovementComponent->MaxWalkSpeed = RunSpeed;
+		break;
+	}
+}
+
+void ACombatPlayerCharacter::PrintMovementDebug() const
+{
+	if (false == bShowMovementDebug)
+	{
+		return;
+	}
+	
+	if (nullptr == GEngine)
+	{
+		return;
+	}
+	
+	const UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr == MovementComponent)
+	{
+		return;
+	}
+	
+	FString MovementStateString = TEXT("Unknown");
+	
+	switch (MovementState)
+	{
+	case ECombatMovementState::Walking:
+		MovementStateString = TEXT("Walking");
+		break;
+	case ECombatMovementState::Running:
+		MovementStateString = TEXT("Running");
+		break;
+	case ECombatMovementState::Sprinting:
+		MovementStateString = TEXT("Sprinting");
+		break;
+	default:
+		break;
+	}
+	
+	const FVector Velocity = GetVelocity();
+	const float GroundSpeed = FVector(Velocity.X, Velocity.Y, 0.0f).Size();
+	
+	const FString DebugText = FString::Printf(
+		TEXT("MovementState: %s | GroundSpeed: %.1f | MaxWalkSpeed: %.1f"),
+		*MovementStateString,
+		GroundSpeed,
+		MovementComponent->MaxWalkSpeed
+	);
+	
+	GEngine->AddOnScreenDebugMessage(
+		1,
+		0.0f,
+		FColor::Green,
+		DebugText
+	);
 }
 
