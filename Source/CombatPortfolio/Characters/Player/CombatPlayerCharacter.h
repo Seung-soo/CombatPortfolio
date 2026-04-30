@@ -132,6 +132,9 @@ private:
 	void Attack();
 	bool IsCombatAttacking() const;
 	
+	UFUNCTION()
+	void HandleCombatActionStateChanged();
+	
 	FString GetCombatStateDebugString() const;
 	
 	void PrintMovementDebug() const;

@@ -7,12 +7,17 @@
 #include "TimerManager.h"
 #include "CombatComponent.generated.h"
 
+class UAnimInstance;
+class UAnimMontage;
+
 UENUM(BlueprintType)
 enum class ECombatActionState : uint8
 {
 	Idle UMETA(DisplayName = "Idle"),
 	Attacking UMETA(DisplayName = "Attacking"),
 };
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
 
 UCLASS(ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
 class COMBATPORTFOLIO_API UCombatComponent : public UActorComponent
@@ -33,17 +38,27 @@ public:
 	bool IsAttacking() const;
 	ECombatActionState GetCombatActionState() const;
 	
+public:
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
+	FOnCombatActionStateChangedSignature OnCombatActionStateChanged;
+	
 private:
-	void StartAttack();
+	bool StartAttack();
 	void FinishAttack();
+	
+	UAnimInstance* GetOwnerAnimInstance() const;
+	
+	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	
+	void SetCombatActionState(ECombatActionState NewCombatActionState);
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	float AttackDuration = 0.6f;
+	TObjectPtr<UAnimMontage> AttackMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
+	float AttackPlayRate = 1.0f;
 		
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
 	ECombatActionState CombatActionState = ECombatActionState::Idle;
-	
-private:
-	FTimerHandle AttackTimerHandle;
 };

@@ -15,6 +15,7 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
 
@@ -47,17 +48,22 @@ void ACombatPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	if (nullptr != CombatComponent)
+	{
+		CombatComponent->OnCombatActionStateChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleCombatActionStateChanged);
+	}
+	
 	ApplyRotationMode();
 	UpdateMovementState();
 	UpdateMovementSpeed();
+	
+	SetActorTickEnabled(bShowMovementDebug);
 }
 
 void ACombatPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
+
 	PrintMovementDebug();
 }
 
@@ -293,6 +299,12 @@ void ACombatPlayerCharacter::Attack()
 bool ACombatPlayerCharacter::IsCombatAttacking() const
 {
 	return nullptr != CombatComponent && true == CombatComponent->IsAttacking();
+}
+
+void ACombatPlayerCharacter::HandleCombatActionStateChanged()
+{
+	UpdateMovementState();
+	UpdateMovementSpeed();
 }
 
 FString ACombatPlayerCharacter::GetCombatStateDebugString() const
