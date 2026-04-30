@@ -9,6 +9,7 @@
 class UCameraComponent;
 class USpringArmComponent;
 class UInputAction;
+class UCombatComponent;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -50,6 +51,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FollowCamera;
+	
+private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCombatComponent> CombatComponent;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -67,6 +72,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> ToggleRotationModeAction;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> AttackAction;
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
 	float WalkSpeed = 250.0f;
@@ -76,6 +84,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
 	float SprintSpeed = 700.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
+	float AttackMoveSpeed = 150.0f;
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
 	ECombatMovementState MovementState = ECombatMovementState::Running;
@@ -117,6 +128,11 @@ private:
 	
 	void UpdateMovementState();
 	void UpdateMovementSpeed();
+	
+	void Attack();
+	bool IsCombatAttacking() const;
+	
+	FString GetCombatStateDebugString() const;
 	
 	void PrintMovementDebug() const;
 };

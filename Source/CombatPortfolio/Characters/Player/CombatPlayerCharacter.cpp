@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
+#include "CombatPortfolio/Components/CombatComponent.h"
 
 // Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
@@ -37,6 +38,8 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+	
+	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 }
 
 // Called when the game starts or when spawned
@@ -53,6 +56,8 @@ void ACombatPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
+	UpdateMovementState();
+	UpdateMovementSpeed();
 	PrintMovementDebug();
 }
 
@@ -96,6 +101,11 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 	if (nullptr != ToggleRotationModeAction)
 	{
 		EnhancedInputComponent->BindAction(ToggleRotationModeAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::ToggleRotationMode);
+	}
+	
+	if (nullptr != AttackAction)
+	{
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Attack);
 	}
 }
 
@@ -144,6 +154,11 @@ void ACombatPlayerCharacter::StopWalk()
 
 void ACombatPlayerCharacter::StartSprint()
 {
+	if (true == IsCombatAttacking())
+	{
+		return;
+	}
+	
 	bWantsToSprint = true;
 	
 	UpdateMovementState();
@@ -232,6 +247,12 @@ void ACombatPlayerCharacter::UpdateMovementSpeed()
 		return;
 	}
 	
+	if (true == IsCombatAttacking())
+	{
+		MovementComponent->MaxWalkSpeed = AttackMoveSpeed;
+		return;
+	}
+	
 	switch (MovementState)
 	{
 	case ECombatMovementState::Walking:
@@ -246,6 +267,49 @@ void ACombatPlayerCharacter::UpdateMovementSpeed()
 	default:
 		MovementComponent->MaxWalkSpeed = RunSpeed;
 		break;
+	}
+}
+
+void ACombatPlayerCharacter::Attack()
+{
+	if (nullptr == CombatComponent)
+	{
+		return;
+	}
+	
+	const bool bAttackStarted = CombatComponent->RequestAttack();
+	
+	if (false == bAttackStarted)
+	{
+		return;
+	}
+	
+	bWantsToSprint = false;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+bool ACombatPlayerCharacter::IsCombatAttacking() const
+{
+	return nullptr != CombatComponent && true == CombatComponent->IsAttacking();
+}
+
+FString ACombatPlayerCharacter::GetCombatStateDebugString() const
+{
+	if (nullptr == CombatComponent)
+	{
+		return TEXT("None");
+	}
+	
+	switch (CombatComponent->GetCombatActionState())
+	{
+	case ECombatActionState::Idle:
+		return TEXT("Idle");
+	case ECombatActionState::Attacking:
+		return TEXT("Attacking");
+	default:
+		return TEXT("Unknown");
 	}
 }
 
@@ -305,9 +369,10 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
+		*GetCombatStateDebugString(),
 		GroundSpeed,
 		MovementComponent->MaxWalkSpeed,
 		ControlYaw
