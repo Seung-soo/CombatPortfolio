@@ -2,11 +2,14 @@
 
 
 #include "CombatPlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 #include "EnhancedInputSubsystems.h"
 
 void ACombatPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	ApplyCameraPitchLimits();
 
 	ULocalPlayer* LocalPlayer = GetLocalPlayer();
 
@@ -27,4 +30,15 @@ void ACombatPlayerController::BeginPlay()
 	{
 		InputSubsystem->AddMappingContext(DefaultMappingContext, MappingPriority);
 	}
+}
+
+void ACombatPlayerController::ApplyCameraPitchLimits() const
+{
+	if (nullptr == PlayerCameraManager)
+	{
+		return;
+	}
+	
+	PlayerCameraManager->ViewPitchMin = CameraPitchMin;
+	PlayerCameraManager->ViewPitchMax = CameraPitchMax;
 }

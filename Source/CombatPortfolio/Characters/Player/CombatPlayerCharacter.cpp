@@ -31,6 +31,8 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
+	CameraBoom->bEnableCameraLag = true;
+	CameraBoom->CameraLagSpeed = 12.0f;
 
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
@@ -42,6 +44,7 @@ void ACombatPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	ApplyRotationMode();
 	UpdateMovementState();
 	UpdateMovementSpeed();
 }
@@ -88,6 +91,11 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartSprint);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::StopSprint);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &ACombatPlayerCharacter::StopSprint);
+	}
+	
+	if (nullptr != ToggleRotationModeAction)
+	{
+		EnhancedInputComponent->BindAction(ToggleRotationModeAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::ToggleRotationMode);
 	}
 }
 
@@ -148,6 +156,54 @@ void ACombatPlayerCharacter::StopSprint()
 	
 	UpdateMovementState();
 	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::ToggleRotationMode()
+{
+	if (ECombatRotationMode::OrientToMovement == RotationMode)
+	{
+		SetRotationMode(ECombatRotationMode::Strafe);
+		return;
+	}
+	
+	SetRotationMode(ECombatRotationMode::OrientToMovement);
+}
+
+void ACombatPlayerCharacter::SetRotationMode(ECombatRotationMode NewRotationMode)
+{
+	if (RotationMode == NewRotationMode)
+	{
+		return;
+	}
+	
+	RotationMode = NewRotationMode;
+	ApplyRotationMode();
+}
+
+void ACombatPlayerCharacter::ApplyRotationMode()
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr == MovementComponent)
+	{
+		return;
+	}
+	
+	switch (RotationMode)
+	{
+	case ECombatRotationMode::OrientToMovement:
+		bUseControllerRotationYaw = false;
+		MovementComponent->bOrientRotationToMovement = true;
+		break;
+	case ECombatRotationMode::Strafe:
+		bUseControllerRotationYaw = true;
+		MovementComponent->bOrientRotationToMovement = false;
+		break;
+	default:
+		bUseControllerRotationYaw = false;
+		MovementComponent->bOrientRotationToMovement = true;
+		break;
+	}
 }
 
 void ACombatPlayerCharacter::UpdateMovementState()
@@ -229,14 +285,32 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 		break;
 	}
 	
+	FString RotationModeString = TEXT("Unknown");
+	
+	switch (RotationMode)
+	{
+	case ECombatRotationMode::OrientToMovement:
+		RotationModeString = TEXT("OrientToMovement");
+		break;
+	case ECombatRotationMode::Strafe:
+		RotationModeString = TEXT("Strafe");
+		break;
+	default:
+		break;
+	}
+	
 	const FVector Velocity = GetVelocity();
 	const float GroundSpeed = FVector(Velocity.X, Velocity.Y, 0.0f).Size();
 	
+	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
+	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | GroundSpeed: %.1f | MaxWalkSpeed: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
+		*RotationModeString,
 		GroundSpeed,
-		MovementComponent->MaxWalkSpeed
+		MovementComponent->MaxWalkSpeed,
+		ControlYaw
 	);
 	
 	GEngine->AddOnScreenDebugMessage(

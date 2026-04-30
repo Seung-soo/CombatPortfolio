@@ -19,6 +19,13 @@ enum class ECombatMovementState : uint8
 	Sprinting UMETA(DisplayName = "Sprinting"),
 };
 
+UENUM(BlueprintType)
+enum class ECombatRotationMode : uint8
+{
+	OrientToMovement UMETA(DisplayName = "Orient To Movement"),
+	Strafe UMETA(DisplayName = "Strafe")
+};
+
 UCLASS()
 class COMBATPORTFOLIO_API ACombatPlayerCharacter : public ACharacter
 {
@@ -57,6 +64,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> SprintAction;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> ToggleRotationModeAction;
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
 	float WalkSpeed = 250.0f;
@@ -75,6 +85,10 @@ private:
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
 	bool bWantsToSprint = false;
+	
+private:
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Rotation", meta = (AllowPrivateAccess = "true"))
+	ECombatRotationMode RotationMode = ECombatRotationMode::OrientToMovement;
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
@@ -96,6 +110,10 @@ private:
 	
 	void StartSprint();
 	void StopSprint();
+	
+	void ToggleRotationMode();
+	void SetRotationMode(ECombatRotationMode NewRotationMode);
+	void ApplyRotationMode();
 	
 	void UpdateMovementState();
 	void UpdateMovementSpeed();
