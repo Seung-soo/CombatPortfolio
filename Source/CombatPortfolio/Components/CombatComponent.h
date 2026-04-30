@@ -18,6 +18,7 @@ enum class ECombatActionState : uint8
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitWindowChangedSignature);
 
 UCLASS(ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
 class COMBATPORTFOLIO_API UCombatComponent : public UActorComponent
@@ -36,11 +37,18 @@ public:
 	bool RequestAttack();
 	bool CanStartAttack() const;
 	bool IsAttacking() const;
+	bool IsHitWindowOpen() const;
 	ECombatActionState GetCombatActionState() const;
+	
+	void BeginHitWindow();
+	void EndHitWindow();
 	
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
 	FOnCombatActionStateChangedSignature OnCombatActionStateChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
+	FOnHitWindowChangedSignature OnHitWindowChanged;
 	
 private:
 	bool StartAttack();
@@ -52,6 +60,8 @@ private:
 	
 	void SetCombatActionState(ECombatActionState NewCombatActionState);
 	
+	void SetHitWindowOpen(bool bNewHitWindowOpen);
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> AttackMontage;
@@ -61,4 +71,7 @@ private:
 		
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
 	ECombatActionState CombatActionState = ECombatActionState::Idle;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
+	bool bHitWindowOpen = false;
 };

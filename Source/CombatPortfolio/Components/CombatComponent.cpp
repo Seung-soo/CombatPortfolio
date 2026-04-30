@@ -11,7 +11,6 @@
 UCombatComponent::UCombatComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-
 }
 
 
@@ -19,7 +18,6 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
 }
 
 bool UCombatComponent::RequestAttack()
@@ -40,6 +38,26 @@ bool UCombatComponent::CanStartAttack() const
 bool UCombatComponent::IsAttacking() const
 {
 	return ECombatActionState::Attacking == CombatActionState;
+}
+
+bool UCombatComponent::IsHitWindowOpen() const
+{
+	return bHitWindowOpen;
+}
+
+void UCombatComponent::BeginHitWindow()
+{
+	if (false == IsAttacking())
+	{
+		return;
+	}
+	
+	SetHitWindowOpen(true);
+}
+
+void UCombatComponent::EndHitWindow()
+{
+	SetHitWindowOpen(false);
 }
 
 ECombatActionState UCombatComponent::GetCombatActionState() const
@@ -82,6 +100,7 @@ bool UCombatComponent::StartAttack()
 
 void UCombatComponent::FinishAttack()
 {
+	SetHitWindowOpen(false);
 	SetCombatActionState(ECombatActionState::Idle);
 }
 
@@ -124,4 +143,16 @@ void UCombatComponent::SetCombatActionState(ECombatActionState NewCombatActionSt
 	CombatActionState = NewCombatActionState;
 	
 	OnCombatActionStateChanged.Broadcast();
+}
+
+void UCombatComponent::SetHitWindowOpen(bool bNewHitWindowOpen)
+{
+	if (bHitWindowOpen == bNewHitWindowOpen)
+	{
+		return;
+	}
+	
+	bHitWindowOpen = bNewHitWindowOpen;
+	
+	OnHitWindowChanged.Broadcast();
 }

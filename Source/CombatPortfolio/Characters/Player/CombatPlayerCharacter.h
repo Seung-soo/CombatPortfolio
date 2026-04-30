@@ -137,5 +137,7 @@ private:
 	
 	FString GetCombatStateDebugString() const;
 	
+	FString GetHitWindowDebugString() const;
+	
 	void PrintMovementDebug() const;
 };
