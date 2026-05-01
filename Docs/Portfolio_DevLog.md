@@ -357,3 +357,35 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - `CurrentComboIndex` is used to select the active combo data.
 - Combo data is currently stored in CombatComponent and can later be moved to DataAsset.
 - This structure allows each combo attack to have different damage and hit detection settings.
+
+
+## Episode 14
+
+### Goal
+
+플레이어 회피 입력을 추가하고, 회피 상태, 회피 이동, 회피 몽타주, 짧은 무적 상태를 구현한다.
+
+### Completed
+
+- Added `IA_Dodge`
+- Mapped `Space Bar` to dodge input
+- Added `Dodging` to `ECombatActionState`
+- Added dodge settings to `UCombatComponent`
+  - `DodgeMontage`
+  - `DodgeStrength`
+  - `DodgeDuration`
+  - `DodgeInvincibleDuration`
+- Implemented `RequestDodge()`
+- Implemented dodge direction calculation in `ACombatPlayerCharacter`
+- Applied dodge movement using `LaunchCharacter`
+- Added temporary invincibility state during dodge
+- Blocked attack and sprint during dodge
+- Added dodge and invincibility debug output
+- Created `AM_Player_Dodge`
+
+### Technical Notes
+
+- Character calculates dodge direction from camera-relative movement input.
+- CombatComponent owns dodge state and invincibility state.
+- Dodge currently uses `LaunchCharacter` as a prototype movement method.
+- Future improvement may replace launch-based dodge with Root Motion or curve-driven movement.

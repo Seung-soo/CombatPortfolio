@@ -79,6 +79,31 @@ bool UCombatComponent::RequestAttack()
 	return false;
 }
 
+bool UCombatComponent::RequestDodge(const FVector& DodgeDirection)
+{
+	if (false == CanStartDodge())
+	{
+		return false;
+	}
+	
+	return StartDodge(DodgeDirection);
+}
+
+bool UCombatComponent::CanStartDodge() const
+{
+	return ECombatActionState::Idle == CombatActionState;
+}
+
+bool UCombatComponent::IsDodging() const
+{
+	return ECombatActionState::Dodging == CombatActionState;
+}
+
+bool UCombatComponent::IsInvincible() const
+{
+	return bInvincible;
+}
+
 bool UCombatComponent::CanStartAttack() const
 {
 	return ECombatActionState::Idle == CombatActionState;
@@ -171,7 +196,7 @@ ECombatActionState UCombatComponent::GetCombatActionState() const
 	return CombatActionState;
 }
 
-bool UCombatComponent::StartAttack()
+bool UCombatComponent::StartAttack() 
 {
 	if (nullptr == AttackMontage)
 	{
@@ -219,6 +244,120 @@ bool UCombatComponent::StartAttack()
 	UE_LOG(LogTemp, Log, TEXT("Attack started. Section: %s, Damage: %.1f"), *FirstSectionName.ToString(), GetCurrentAttackDamage());
 	
 	return true;
+}
+
+bool UCombatComponent::StartDodge(const FVector& DodgeDirection)
+{
+	ResetComboState();
+	
+	SetHitWindowOpen(false);
+	SetComboInputWindowOpen(false);
+	SetComboInputBuffered(false);
+	SetComponentTickEnabled(false);
+	HitActorsThisAttack.Reset();
+	
+	SetCombatActionState(ECombatActionState::Dodging);
+	
+	BeginInvincibility();
+	
+	ApplyDodgeMovement(DodgeDirection);
+	
+	const bool bDodgeMontagePlayed = TryPlayDodgeMontage();
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(DodgeFallbackTimerHandle);
+		
+		World->GetTimerManager().SetTimer(
+			DodgeFallbackTimerHandle,
+			this,
+			&UCombatComponent::FinishDodge,
+			DodgeDuration,
+			false
+		);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("Dodge started. MontagePlayed: %s"), true == bDodgeMontagePlayed ? TEXT("true") : TEXT("false"));
+	
+	return true;
+}
+
+bool UCombatComponent::TryPlayDodgeMontage()
+{
+	if (nullptr == DodgeMontage)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DodgeMontage is not assigned. Dodge movement will still happen"));
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = GetOwnerAnimInstance();
+	
+	if (nullptr == AnimInstance)
+	{
+		return false;
+	}
+	
+	const float MontageDuration = AnimInstance->Montage_Play(DodgeMontage, DodgePlayRate);
+	
+	if (0.0f >= MontageDuration)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Dodge Montage_Play failed."));
+		return false;
+	}
+	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &UCombatComponent::HandleDodgeMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, DodgeMontage);
+	
+	return true;
+}
+
+void UCombatComponent::ApplyDodgeMovement(const FVector& DodgeDirection)
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	
+	if (nullptr == OwnerCharacter)
+	{
+		return;
+	}
+	
+	FVector SafeDodgeDirection = DodgeDirection.GetSafeNormal();
+	
+	if (true == SafeDodgeDirection.IsNearlyZero())
+	{
+		SafeDodgeDirection = OwnerCharacter->GetActorForwardVector();
+	}
+	
+	OwnerCharacter->LaunchCharacter(SafeDodgeDirection * DodgeStrength, true, false);
+}
+
+void UCombatComponent::BeginInvincibility()
+{
+	SetInvincible(true);
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return;
+	}
+	
+	World->GetTimerManager().ClearTimer(InvincibilityTimerHandle);
+	
+	World->GetTimerManager().SetTimer(
+		InvincibilityTimerHandle,
+		this,
+		&UCombatComponent::EndInvincibility,
+		DodgeInvincibleDuration,
+		false
+	);
+}
+
+void UCombatComponent::EndInvincibility()
+{
+	SetInvincible(false);
 }
 
 bool UCombatComponent::TryBufferComboInput()
@@ -382,6 +521,51 @@ void UCombatComponent::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInt
 	FinishAttack();
 }
 
+void UCombatComponent::HandleDodgeMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != DodgeMontage)
+	{
+		return;
+	}
+	
+	FinishDodge();
+}
+
+void UCombatComponent::FinishDodge()
+{
+	if (false == IsDodging())
+	{
+		return;
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(DodgeFallbackTimerHandle);
+	}
+	
+	EndInvincibility();
+	
+	SetCombatActionState(ECombatActionState::Idle);
+	
+	UE_LOG(LogTemp, Log, TEXT("Dodge finished."));
+}
+
+void UCombatComponent::SetInvincible(bool bNewInvincible)
+{
+	if (bInvincible == bNewInvincible)
+	{
+		return;
+	}
+	
+	bInvincible = bNewInvincible;
+	
+	OnInvincibilityChanged.Broadcast();
+	
+	UE_LOG(LogTemp, Log, TEXT("Invincible: %s"), true == bInvincible ? TEXT("true") : TEXT("false"));
+}
+
 void UCombatComponent::SetCombatActionState(ECombatActionState NewCombatActionState)
 {
 	if (CombatActionState == NewCombatActionState)
@@ -480,7 +664,7 @@ void UCombatComponent::PerformAttackTrace()
 		
 		DrawDebugCapsule(
 			World,
-			(StartLocation + EndLocation) * 0.5f,
+			Center,
 			CapsuleHalfHeight,
 			CurrentAttackData->TraceRadius,
 			FQuat::Identity,

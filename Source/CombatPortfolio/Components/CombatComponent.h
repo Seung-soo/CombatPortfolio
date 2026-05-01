@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HealthComponent.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"
 #include "CombatComponent.generated.h"
@@ -16,6 +17,7 @@ enum class ECombatActionState : uint8
 {
 	Idle UMETA(DisplayName = "Idle"),
 	Attacking UMETA(DisplayName = "Attacking"),
+	Dodging UMETA(DisplayName = "Dodging"),
 };
 
 USTRUCT(BlueprintType)
@@ -42,6 +44,7 @@ struct FComboAttackData
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitWindowChangedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnComboStateChangedSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInvincibilityChangedSignature);
 
 UCLASS(ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
 class COMBATPORTFOLIO_API UCombatComponent : public UActorComponent
@@ -59,8 +62,14 @@ protected:
 
 public:	
 	bool RequestAttack();
+	bool RequestDodge(const FVector& DodgeDirection);
+	
 	bool CanStartAttack() const;
+	bool CanStartDodge() const;
+	
 	bool IsAttacking() const;
+	bool IsDodging() const;
+	bool IsInvincible() const;
 	bool IsHitWindowOpen() const;
 	bool IsComboInputWindowOpen() const;
 	bool HasBufferedComboInput() const;
@@ -85,8 +94,18 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
 	FOnComboStateChangedSignature OnComboStateChanged;
 	
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
+	FOnInvincibilityChangedSignature OnInvincibilityChanged;
+	
 private:
 	bool StartAttack();
+	bool StartDodge(const FVector& DodgeDirection);
+	
+	bool TryPlayDodgeMontage();
+	void ApplyDodgeMovement(const FVector& DodgeDirection);
+	
+	void BeginInvincibility();
+	void EndInvincibility();
 	
 	bool TryBufferComboInput();
 	bool TryCommitBufferedCombo();
@@ -95,14 +114,15 @@ private:
 	const FComboAttackData* GetComboAttackDataByIndex(int32 ComboIndex) const;
 	FName GetCurrentComboSectionName() const;
 	FName GetNextComboSectionName() const;
-	
-	void FinishAttack();
-	
 	void ResetComboState();
 	
 	UAnimInstance* GetOwnerAnimInstance() const;
 	
 	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void HandleDodgeMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	
+	void FinishAttack();
+	void FinishDodge();
 	
 	void SetCombatActionState(ECombatActionState NewCombatActionState);
 	
@@ -110,6 +130,8 @@ private:
 	
 	void SetComboInputWindowOpen(bool bNewComboInputWindowOpen);
 	void SetComboInputBuffered(bool bNewComboInputBuffered);
+	
+	void SetInvincible(bool bNewInvincible);
 	
 	void PerformAttackTrace();
 	void ApplyDamageToHitActor(AActor* HitActor);
@@ -126,6 +148,21 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	float AttackPlayRate = 1.0f;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> DodgeMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
+	float DodgePlayRate = 1.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
+	float DodgeStrength = 900.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
+	float DodgeDuration = 0.45f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
+	float DodgeInvincibleDuration = 0.25f;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
 	TArray<FComboAttackData> ComboAttackDataList;
 	
@@ -138,6 +175,9 @@ private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
 	bool bHitWindowOpen = false;
 	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
+	bool bInvincible = false;
+	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
 	int32 CurrentComboIndex = 0;
 	
@@ -148,5 +188,8 @@ private:
 	bool bComboInputBuffered = false;
 	
 private:
+	FTimerHandle DodgeFallbackTimerHandle;
+	FTimerHandle InvincibilityTimerHandle;
+	
 	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;
 };

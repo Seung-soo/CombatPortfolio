@@ -113,11 +113,21 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 	{
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Attack);
 	}
+	
+	if (nullptr != DodgeAction)
+	{
+		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Dodge);
+	}
 }
 
 void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 {
 	const FVector2D MovementVector = Value.Get<FVector2D>();
+	
+	if (false == MovementVector.IsNearlyZero())
+	{
+		LastMovementInputVector = MovementVector;
+	}
 
 	if (nullptr == Controller)
 	{
@@ -160,7 +170,7 @@ void ACombatPlayerCharacter::StopWalk()
 
 void ACombatPlayerCharacter::StartSprint()
 {
-	if (true == IsCombatAttacking())
+	if (true == IsCombatAttacking() || IsCombatDodging())
 	{
 		return;
 	}
@@ -253,6 +263,12 @@ void ACombatPlayerCharacter::UpdateMovementSpeed()
 		return;
 	}
 	
+	if (true == IsCombatDodging())
+	{
+		MovementComponent->MaxWalkSpeed = DodgeMoveSpeed;
+		return;
+	}
+	
 	if (true == IsCombatAttacking())
 	{
 		MovementComponent->MaxWalkSpeed = AttackMoveSpeed;
@@ -296,6 +312,73 @@ void ACombatPlayerCharacter::Attack()
 	UpdateMovementSpeed();
 }
 
+void ACombatPlayerCharacter::Dodge()
+{
+	if (nullptr == CombatComponent)
+	{
+		return;
+	}
+	
+	const FVector DodgeDirection = GetDodgeDirection();
+	
+	if (false == DodgeDirection.IsNearlyZero())
+	{
+		const FRotator DodgeRotation = DodgeDirection.Rotation();
+		SetActorRotation(FRotator(0.0f, DodgeRotation.Yaw, 0.0f));
+	}
+	
+	const bool bDodgeStarted = CombatComponent->RequestDodge(DodgeDirection);
+	
+	if (false == bDodgeStarted)
+	{
+		return;
+	}
+	
+	bWantsToSprint = false;
+	bWantsToWalk = false;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+bool ACombatPlayerCharacter::IsCombatDodging() const
+{
+	return nullptr != CombatComponent && true == CombatComponent->IsDodging();
+}
+
+FVector ACombatPlayerCharacter::GetDodgeDirection() const
+{
+	if (nullptr == Controller)
+	{
+		return GetActorForwardVector();
+	}
+	
+	const FRotator ControlRotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+	
+	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+	
+	FVector DodgeDirection = ForwardDirection * LastMovementInputVector.Y + RightDirection * LastMovementInputVector.X;
+	
+	if (true == DodgeDirection.IsNearlyZero())
+	{
+		DodgeDirection = GetActorForwardVector();
+	}
+	
+	return DodgeDirection.GetSafeNormal();
+}
+
+FString ACombatPlayerCharacter::GetInvincibilityDebugString() const
+{
+	if (nullptr == CombatComponent)
+	{
+		return TEXT("None");
+	}
+	
+	return true == CombatComponent->IsInvincible() ? TEXT("Invincible") : TEXT("Vulnerable");
+}
+
 bool ACombatPlayerCharacter::IsCombatAttacking() const
 {
 	return nullptr != CombatComponent && true == CombatComponent->IsAttacking();
@@ -320,6 +403,8 @@ FString ACombatPlayerCharacter::GetCombatStateDebugString() const
 		return TEXT("Idle");
 	case ECombatActionState::Attacking:
 		return TEXT("Attacking");
+	case ECombatActionState::Dodging:
+		return TEXT("Dodging");
 	default:
 		return TEXT("Unknown");
 	}
@@ -417,10 +502,11 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | IFrame: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
 		*GetCombatStateDebugString(),
+		*GetInvincibilityDebugString(),
 		*GetComboDebugString(),
 		*GetHitWindowDebugString(),
 		GetHitActorCountDebug(),

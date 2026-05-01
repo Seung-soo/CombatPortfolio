@@ -75,6 +75,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> AttackAction;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> DodgeAction;
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
 	float WalkSpeed = 250.0f;
@@ -87,6 +90,11 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
 	float AttackMoveSpeed = 150.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
+	float DodgeMoveSpeed = 0.0f;
+	
+	FVector2D LastMovementInputVector = FVector2D::ZeroVector;
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
 	ECombatMovementState MovementState = ECombatMovementState::Running;
@@ -130,16 +138,23 @@ private:
 	void UpdateMovementSpeed();
 	
 	void Attack();
+	void Dodge();
+	
 	bool IsCombatAttacking() const;
+	bool IsCombatDodging() const;
 	
 	UFUNCTION()
 	void HandleCombatActionStateChanged();
+	
+	FVector GetDodgeDirection() const;
 	
 	FString GetCombatStateDebugString() const;
 	
 	FString GetHitWindowDebugString() const;
 	
 	FString GetComboDebugString() const;
+	
+	FString GetInvincibilityDebugString() const;
 	
 	int32 GetHitActorCountDebug() const;
 	
