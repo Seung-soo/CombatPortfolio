@@ -6,7 +6,8 @@
 #include "Components/ActorComponent.h"
 #include "HealthComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHealthChangedSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnHealthChangedSignature, 
+	float, CurrentHealth, float, MaxHealth, float, Delta);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
 
 UCLASS( ClassGroup=(Combat), meta=(BlueprintSpawnableComponent) )

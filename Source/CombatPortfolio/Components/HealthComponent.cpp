@@ -77,15 +77,20 @@ void UHealthComponent::SetCurrentHealth(float NewHealth)
 		return;
 	}
 	
-	OnHealthChanged.Broadcast();
+	const float Delta = CurrentHealth - OldHealth;
 	
-	UE_LOG(LogTemp, Log, TEXT("Health changed: %.1f / %.1f"), CurrentHealth, MaxHealth);
+	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth, Delta);
+	
+	UE_LOG(LogTemp, Log, TEXT("Health changed: %.1f / %.1f, Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 	
 	if (0.0f >= CurrentHealth && false == bDead)
 	{
 		bDead = true;
 		
-		UE_LOG(LogTemp, Log, TEXT("Owner died: %s"), *GetOwner()->GetName());
+		const AActor* OwnerActor = GetOwner();
+		const FString OwnerName = nullptr != OwnerActor ? OwnerActor->GetName() : TEXT("UnknownOwner");
+		
+		UE_LOG(LogTemp, Log, TEXT("Owner died: %s"), *OwnerName);
 		
 		OnDeath.Broadcast();
 	}
