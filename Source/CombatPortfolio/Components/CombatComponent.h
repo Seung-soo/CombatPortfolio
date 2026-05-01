@@ -9,6 +9,7 @@
 
 class UAnimInstance;
 class UAnimMontage;
+class UHealthComponent;
 
 UENUM(BlueprintType)
 enum class ECombatActionState : uint8
@@ -65,10 +66,12 @@ private:
 	void SetHitWindowOpen(bool bNewHitWindowOpen);
 	
 	void PerformAttackTrace();
+	void ApplyDamageToHitActor(AActor* HitActor);
 	bool HasAlreadyHitActor(const AActor* HitActor) const;
 	void RegisterHitActor(AActor* HitActor);
 	FVector GetAttackTraceStartLocation() const;
 	FVector GetAttackTraceEndLocation() const;
+
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
@@ -85,6 +88,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Trace", meta = (AllowPrivateAccess = "true"))
 	float AttackTraceHalfHeight = 20.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Damage", meta = (AllowPrivateAccess = "true"))
+	float AttackDamage = 25.0f;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDrawAttackTraceDebug = true;

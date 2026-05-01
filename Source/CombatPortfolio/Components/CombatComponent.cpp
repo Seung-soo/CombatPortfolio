@@ -7,6 +7,7 @@
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
+#include "HealthComponent.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -267,7 +268,36 @@ void UCombatComponent::PerformAttackTrace()
 		RegisterHitActor(HitActor);
 		
 		UE_LOG(LogTemp, Log, TEXT("Attack Trace Hit Actor: %s"), *HitActor->GetName());
+		
+		ApplyDamageToHitActor(HitActor);
 	}
+}
+
+void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
+{
+	if (nullptr == HitActor)
+	{
+		return;
+	}
+	
+	UHealthComponent* HealthComponent = HitActor->FindComponentByClass<UHealthComponent>();
+	
+	if (nullptr == HealthComponent)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Hit Actor has no HealthComponent: %s"), *HitActor->GetName());
+		return;
+	}
+	
+	const bool bDamageApplied = HealthComponent->ApplyDamage(AttackDamage);
+	
+	if (false == bDamageApplied)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Damage was not applied to: %s"), *HitActor->GetName());
+		return;
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s. Current HP: %.1f, / %.1f"), 
+		AttackDamage, *HitActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
 }
 
 bool UCombatComponent::HasAlreadyHitActor(const AActor* HitActor) const
