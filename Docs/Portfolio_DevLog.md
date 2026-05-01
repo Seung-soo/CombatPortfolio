@@ -330,3 +330,30 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - ComboInputWindow controls input buffering timing.
 - Combo input is accepted only while ComboInputWindow is open.
 - Current implementation uses `Montage_JumpToSection`; later it may be improved with section transition control.
+
+
+## Episode 13
+
+### Goal
+
+콤보 단계별로 Section, Damage, Trace 범위를 분리해 공격 데이터를 구조화한다.
+
+### Completed
+
+- Added `FComboAttackData`
+- Replaced `ComboSectionNames` with `ComboAttackDataList`
+- Removed shared `AttackDamage`
+- Removed shared attack trace radius/offset values
+- Added per-combo attack damage
+- Added per-combo trace radius
+- Added per-combo trace forward offset and half height
+- Updated attack trace to use current combo data
+- Updated damage application to use current combo data
+- Added current attack damage to debug output
+
+### Technical Notes
+
+- Each combo step is represented by a single `FComboAttackData`.
+- `CurrentComboIndex` is used to select the active combo data.
+- Combo data is currently stored in CombatComponent and can later be moved to DataAsset.
+- This structure allows each combo attack to have different damage and hit detection settings.

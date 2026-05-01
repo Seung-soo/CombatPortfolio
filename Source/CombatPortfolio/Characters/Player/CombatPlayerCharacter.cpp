@@ -347,7 +347,8 @@ FString ACombatPlayerCharacter::GetComboDebugString() const
 	
 	const FString BufferedState = true == CombatComponent->HasBufferedComboInput() ? TEXT("Buffered") : TEXT("None");
 	
-	return FString::Printf(TEXT("%d | Window: %s | Buffer: %s"), DisplayComboIndex, *WindowState, *BufferedState);
+	return FString::Printf(TEXT("%d | Damage: %.1f | Window: %s | Buffer: %s"), 
+		DisplayComboIndex, CombatComponent->GetCurrentAttackDamage(), *WindowState, *BufferedState);
 }
 
 int32 ACombatPlayerCharacter::GetHitActorCountDebug() const

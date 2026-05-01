@@ -18,6 +18,27 @@ enum class ECombatActionState : uint8
 	Attacking UMETA(DisplayName = "Attacking"),
 };
 
+USTRUCT(BlueprintType)
+struct FComboAttackData
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
+	FName SectionName = NAME_None;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
+	float Damage = 25.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "1.0"))
+	float TraceRadius = 80.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
+	float TraceForwardOffset = 140.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
+	float TraceHalfHeight = 40.0f;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitWindowChangedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnComboStateChangedSignature);
@@ -45,6 +66,7 @@ public:
 	bool HasBufferedComboInput() const;
 	int GetCurrentComboIndex() const;
 	int32 GetHitActorCountThisAttack() const;
+	float GetCurrentAttackDamage() const;
 	ECombatActionState GetCombatActionState() const;
 	
 	void BeginHitWindow();
@@ -69,6 +91,8 @@ private:
 	bool TryBufferComboInput();
 	bool TryCommitBufferedCombo();
 	bool CanMoveToNextCombo() const;
+	const FComboAttackData* GetCurrentComboAttackData() const;
+	const FComboAttackData* GetComboAttackDataByIndex(int32 ComboIndex) const;
 	FName GetCurrentComboSectionName() const;
 	FName GetNextComboSectionName() const;
 	
@@ -99,23 +123,11 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> AttackMontage;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
-	TArray<FName> ComboSectionNames;
-	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	float AttackPlayRate = 1.0f;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Trace", meta = (AllowPrivateAccess = "true"))
-	float AttackTraceRadius = 70.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Trace", meta = (AllowPrivateAccess = "true"))
-	float AttackTraceForwardOffset = 140.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Trace", meta = (AllowPrivateAccess = "true"))
-	float AttackTraceHalfHeight = 20.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Damage", meta = (AllowPrivateAccess = "true"))
-	float AttackDamage = 25.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
+	TArray<FComboAttackData> ComboAttackDataList;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDrawAttackTraceDebug = true;

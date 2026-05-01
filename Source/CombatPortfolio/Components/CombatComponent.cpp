@@ -15,9 +15,30 @@ UCombatComponent::UCombatComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 	
-	ComboSectionNames.Add(TEXT("Attack_1"));
-	ComboSectionNames.Add(TEXT("Attack_2"));
-	ComboSectionNames.Add(TEXT("Attack_3"));
+	FComboAttackData FirstAttackData;
+	FirstAttackData.SectionName = TEXT("Attack_1");
+	FirstAttackData.Damage = 20.0f;
+	FirstAttackData.TraceRadius = 75.0f;
+	FirstAttackData.TraceForwardOffset = 130.0f;
+	FirstAttackData.TraceHalfHeight = 40.0f;
+	
+	FComboAttackData SecondAttackData;
+	SecondAttackData.SectionName = TEXT("Attack_2");
+	SecondAttackData.Damage = 25.0f;
+	SecondAttackData.TraceRadius = 85.0f;
+	SecondAttackData.TraceForwardOffset = 145.0f;
+	SecondAttackData.TraceHalfHeight = 55.0f;
+	
+	FComboAttackData ThirdAttackData;
+	ThirdAttackData.SectionName = TEXT("Attack_3");
+	ThirdAttackData.Damage = 40.0f;
+	ThirdAttackData.TraceRadius = 110.0f;
+	ThirdAttackData.TraceForwardOffset = 170.0f;
+	ThirdAttackData.TraceHalfHeight = 55.0f;
+	
+	ComboAttackDataList.Add(FirstAttackData);
+	ComboAttackDataList.Add(SecondAttackData);
+	ComboAttackDataList.Add(ThirdAttackData);
 }
 
 
@@ -93,6 +114,18 @@ int32 UCombatComponent::GetHitActorCountThisAttack() const
 	return HitActorsThisAttack.Num();
 }
 
+float UCombatComponent::GetCurrentAttackDamage() const
+{
+	const FComboAttackData* CurrentAttackData = GetCurrentComboAttackData();
+	
+	if (nullptr == CurrentAttackData)
+	{
+		return 0.0f;
+	}
+	
+	return CurrentAttackData->Damage;
+}
+
 void UCombatComponent::BeginHitWindow()
 {
 	if (false == IsAttacking())
@@ -154,6 +187,12 @@ bool UCombatComponent::StartAttack()
 		return false;
 	}
 	
+	if (0 >= ComboAttackDataList.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Attack failed: ComboAttackDataList is empty"));
+		return false;
+	}
+	
 	ResetComboState();
 	
 	const float MontageDuration = AnimInstance->Montage_Play(AttackMontage, AttackPlayRate);
@@ -176,6 +215,8 @@ bool UCombatComponent::StartAttack()
 	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, AttackMontage);
 	
 	SetCombatActionState(ECombatActionState::Attacking);
+	
+	UE_LOG(LogTemp, Log, TEXT("Attack started. Section: %s, Damage: %.1f"), *FirstSectionName.ToString(), GetCurrentAttackDamage());
 	
 	return true;
 }
@@ -239,7 +280,7 @@ bool UCombatComponent::TryCommitBufferedCombo()
 	
 	AnimInstance->Montage_JumpToSection(NextSectionName, AttackMontage);
 	
-	UE_LOG(LogTemp, Log, TEXT("Combo committed. Jump to section: %s"), *NextSectionName.ToString());
+	UE_LOG(LogTemp, Log, TEXT("Combo committed. Jump to section: %s, Damage: %.1f"), *NextSectionName.ToString(), GetCurrentAttackDamage());
 	
 	OnComboStateChanged.Broadcast();
 	
@@ -248,27 +289,46 @@ bool UCombatComponent::TryCommitBufferedCombo()
 
 bool UCombatComponent::CanMoveToNextCombo() const
 {
-	return ComboSectionNames.IsValidIndex(CurrentComboIndex + 1);
+	return ComboAttackDataList.IsValidIndex(CurrentComboIndex + 1);
+}
+
+const FComboAttackData* UCombatComponent::GetCurrentComboAttackData() const
+{
+	return GetComboAttackDataByIndex(CurrentComboIndex);
+}
+
+const FComboAttackData* UCombatComponent::GetComboAttackDataByIndex(int32 ComboIndex) const
+{
+	if (false == ComboAttackDataList.IsValidIndex(ComboIndex))
+	{
+		return nullptr;
+	}
+	
+	return &ComboAttackDataList[ComboIndex];
 }
 
 FName UCombatComponent::GetCurrentComboSectionName() const
 {
-	if (false == ComboSectionNames.IsValidIndex(CurrentComboIndex))
+	const FComboAttackData* CurrentAttackData = GetCurrentComboAttackData();
+	
+	if (nullptr == CurrentAttackData)
 	{
 		return NAME_None;
 	}
-	
-	return ComboSectionNames[CurrentComboIndex];
+
+	return CurrentAttackData->SectionName;
 }
 
 FName UCombatComponent::GetNextComboSectionName() const
 {
-	if (false == ComboSectionNames.IsValidIndex(CurrentComboIndex + 1))
+	const FComboAttackData* NextAttackData = GetComboAttackDataByIndex(CurrentComboIndex + 1);
+	
+	if (nullptr == NextAttackData)
 	{
 		return NAME_None;
 	}
 	
-	return ComboSectionNames[CurrentComboIndex + 1];
+	return NextAttackData->SectionName;
 }
 
 void UCombatComponent::FinishAttack()
@@ -386,6 +446,13 @@ void UCombatComponent::PerformAttackTrace()
 		return;
 	}
 	
+	const FComboAttackData* CurrentAttackData = GetCurrentComboAttackData();
+	
+	if (nullptr == CurrentAttackData)
+	{
+		return;
+	}
+	
 	const FVector StartLocation = GetAttackTraceStartLocation();
 	const FVector EndLocation = GetAttackTraceEndLocation();
 	
@@ -400,7 +467,7 @@ void UCombatComponent::PerformAttackTrace()
 		EndLocation, 
 		FQuat::Identity, 
 		ECC_Pawn,
-		FCollisionShape::MakeSphere(AttackTraceRadius),
+		FCollisionShape::MakeSphere(CurrentAttackData->TraceRadius),
 		QueryParams
 	);
 	
@@ -409,13 +476,13 @@ void UCombatComponent::PerformAttackTrace()
 		const FColor DebugColor = true == bHit ? FColor::Red : FColor::Green;
 		
 		const FVector Center = (StartLocation + EndLocation) * 0.5f;
-		const float CapsuleHalfHeight = (EndLocation - StartLocation).Size() * 0.5f + AttackTraceRadius;
+		const float CapsuleHalfHeight = (EndLocation - StartLocation).Size() * 0.5f + CurrentAttackData->TraceRadius;
 		
 		DrawDebugCapsule(
 			World,
 			(StartLocation + EndLocation) * 0.5f,
 			CapsuleHalfHeight,
-			AttackTraceRadius,
+			CurrentAttackData->TraceRadius,
 			FQuat::Identity,
 			DebugColor,
 			false,
@@ -462,6 +529,13 @@ void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
 		return;
 	}
 	
+	const FComboAttackData* CurrentAttackData = GetCurrentComboAttackData();
+	
+	if (nullptr == CurrentAttackData)
+	{
+		return;
+	}
+	
 	UHealthComponent* HealthComponent = HitActor->FindComponentByClass<UHealthComponent>();
 	
 	if (nullptr == HealthComponent)
@@ -470,7 +544,7 @@ void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
 		return;
 	}
 	
-	const bool bDamageApplied = HealthComponent->ApplyDamage(AttackDamage);
+	const bool bDamageApplied = HealthComponent->ApplyDamage(CurrentAttackData->Damage);
 	
 	if (false == bDamageApplied)
 	{
@@ -479,7 +553,7 @@ void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
 	}
 	
 	UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s. Current HP: %.1f, / %.1f"), 
-		AttackDamage, *HitActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
+		CurrentAttackData->Damage, *HitActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
 }
 
 bool UCombatComponent::HasAlreadyHitActor(const AActor* HitActor) const
@@ -519,10 +593,17 @@ FVector UCombatComponent::GetAttackTraceStartLocation() const
 		return FVector::ZeroVector;
 	}
 	
+	const FComboAttackData* CurrentAttackData = GetCurrentComboAttackData();
+	
+	if (nullptr == CurrentAttackData)
+	{
+		return FVector::ZeroVector;
+	}
+	
 	const FVector OwnerLocation = OwnerActor->GetActorLocation();
 	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
 	
-	return OwnerLocation + ForwardVector * AttackTraceForwardOffset - FVector(0.0f, 0.0f, AttackTraceHalfHeight);
+	return OwnerLocation + ForwardVector * CurrentAttackData->TraceForwardOffset - FVector(0.0f, 0.0f, CurrentAttackData->TraceHalfHeight);
 }
 
 FVector UCombatComponent::GetAttackTraceEndLocation() const
@@ -534,8 +615,15 @@ FVector UCombatComponent::GetAttackTraceEndLocation() const
 		return FVector::ZeroVector;
 	}
 	
+	const FComboAttackData* CurrentAttackData = GetCurrentComboAttackData();
+	
+	if (nullptr == CurrentAttackData)
+	{
+		return FVector::ZeroVector;
+	}
+	
 	const FVector OwnerLocation = OwnerActor->GetActorLocation();
 	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
 	
-	return OwnerLocation + ForwardVector * AttackTraceForwardOffset + FVector(0.0f, 0.0f, AttackTraceHalfHeight);
+	return OwnerLocation + ForwardVector * CurrentAttackData->TraceForwardOffset + FVector(0.0f, 0.0f, CurrentAttackData->TraceHalfHeight);
 }
