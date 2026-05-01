@@ -335,6 +335,16 @@ FString ACombatPlayerCharacter::GetHitWindowDebugString() const
 	return true == CombatComponent->IsHitWindowOpen() ? TEXT("Open") : TEXT("Closed");
 }
 
+int32 ACombatPlayerCharacter::GetHitActorCountDebug() const
+{
+	if (nullptr == CombatComponent)
+	{
+		return 0;
+	}
+	
+	return CombatComponent->GetHitActorCountThisAttack();
+}
+
 void ACombatPlayerCharacter::PrintMovementDebug() const
 {
 	if (false == bShowMovementDebug)
@@ -391,11 +401,12 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | HitWindow: %s | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
 		*GetCombatStateDebugString(),
 		*GetHitWindowDebugString(),
+		GetHitActorCountDebug(),
 		GroundSpeed,
 		MovementComponent->MaxWalkSpeed,
 		ControlYaw

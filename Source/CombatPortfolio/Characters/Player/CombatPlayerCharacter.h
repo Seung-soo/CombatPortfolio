@@ -139,5 +139,7 @@ private:
 	
 	FString GetHitWindowDebugString() const;
 	
+	int32 GetHitActorCountDebug() const;
+	
 	void PrintMovementDebug() const;
 };

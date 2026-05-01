@@ -6,11 +6,13 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
 
@@ -18,6 +20,22 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	SetComponentTickEnabled(false);
+}
+
+void UCombatComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	if (false == IsHitWindowOpen())
+	{
+		return;
+	}
+	
+	// 충돌 검사를 할 때만 Tick이 켜지기 때문에 이런 구조가 가능
+	PerformAttackTrace();
 }
 
 bool UCombatComponent::RequestAttack()
@@ -45,6 +63,11 @@ bool UCombatComponent::IsHitWindowOpen() const
 	return bHitWindowOpen;
 }
 
+int32 UCombatComponent::GetHitActorCountThisAttack() const
+{
+	return HitActorsThisAttack.Num();
+}
+
 void UCombatComponent::BeginHitWindow()
 {
 	if (false == IsAttacking())
@@ -52,12 +75,16 @@ void UCombatComponent::BeginHitWindow()
 		return;
 	}
 	
+	HitActorsThisAttack.Reset();
+	
 	SetHitWindowOpen(true);
+	SetComponentTickEnabled(true);
 }
 
 void UCombatComponent::EndHitWindow()
 {
 	SetHitWindowOpen(false);
+	SetComponentTickEnabled(false);
 }
 
 ECombatActionState UCombatComponent::GetCombatActionState() const
@@ -101,6 +128,9 @@ bool UCombatComponent::StartAttack()
 void UCombatComponent::FinishAttack()
 {
 	SetHitWindowOpen(false);
+	SetComponentTickEnabled(false);
+	HitActorsThisAttack.Reset();
+	
 	SetCombatActionState(ECombatActionState::Idle);
 }
 
@@ -155,4 +185,145 @@ void UCombatComponent::SetHitWindowOpen(bool bNewHitWindowOpen)
 	bHitWindowOpen = bNewHitWindowOpen;
 	
 	OnHitWindowChanged.Broadcast();
+}
+
+void UCombatComponent::PerformAttackTrace()
+{
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return;
+	}
+	
+	AActor* OwnerActor = GetOwner();
+	
+	if (nullptr == OwnerActor)
+	{
+		return;
+	}
+	
+	const FVector StartLocation = GetAttackTraceStartLocation();
+	const FVector EndLocation = GetAttackTraceEndLocation();
+	
+	TArray<FHitResult> HitResults;
+	
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerActor);
+	
+	const bool bHit = World->SweepMultiByChannel(
+		HitResults, 
+		StartLocation, 
+		EndLocation, 
+		FQuat::Identity, 
+		ECC_Pawn,
+		FCollisionShape::MakeSphere(AttackTraceRadius),
+		QueryParams
+	);
+	
+	if (true == bDrawAttackTraceDebug)
+	{
+		const FColor DebugColor = true == bHit ? FColor::Red : FColor::Green;
+		
+		const FVector Center = (StartLocation + EndLocation) * 0.5f;
+		const float CapsuleHalfHeight = (EndLocation - StartLocation).Size() * 0.5f + AttackTraceRadius;
+		
+		DrawDebugCapsule(
+			World,
+			(StartLocation + EndLocation) * 0.5f,
+			CapsuleHalfHeight,
+			AttackTraceRadius,
+			FQuat::Identity,
+			DebugColor,
+			false,
+			0.05f
+		);
+	}
+	
+	if (false == bHit)
+	{
+		return;
+	}
+	
+	for (const FHitResult& HitResult : HitResults)
+	{
+		AActor* HitActor = HitResult.GetActor();
+		
+		if (nullptr == HitActor)
+		{
+			continue;
+		}
+		
+		if (HitActor == OwnerActor)
+		{
+			continue;
+		}
+		
+		if (HasAlreadyHitActor(HitActor))
+		{
+			continue;
+		}
+		
+		RegisterHitActor(HitActor);
+		
+		UE_LOG(LogTemp, Log, TEXT("Attack Trace Hit Actor: %s"), *HitActor->GetName());
+	}
+}
+
+bool UCombatComponent::HasAlreadyHitActor(const AActor* HitActor) const
+{
+	if (nullptr == HitActor)
+	{
+		return false;
+	}
+	
+	for (const TWeakObjectPtr<AActor>& HitActorPtr : HitActorsThisAttack)
+	{
+		if (HitActorPtr.Get() == HitActor)
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+void UCombatComponent::RegisterHitActor(AActor* HitActor)
+{
+	if (nullptr == HitActor)
+	{
+		return;
+	}
+	
+	HitActorsThisAttack.Add(HitActor);
+}
+
+FVector UCombatComponent::GetAttackTraceStartLocation() const
+{
+	const AActor* OwnerActor = GetOwner();
+	
+	if (nullptr == OwnerActor)
+	{
+		return FVector::ZeroVector;
+	}
+	
+	const FVector OwnerLocation = OwnerActor->GetActorLocation();
+	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
+	
+	return OwnerLocation + ForwardVector * AttackTraceForwardOffset - FVector(0.0f, 0.0f, AttackTraceHalfHeight);
+}
+
+FVector UCombatComponent::GetAttackTraceEndLocation() const
+{
+	const AActor* OwnerActor = GetOwner();
+	
+	if (nullptr == OwnerActor)
+	{
+		return FVector::ZeroVector;
+	}
+	
+	const FVector OwnerLocation = OwnerActor->GetActorLocation();
+	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
+	
+	return OwnerLocation + ForwardVector * AttackTraceForwardOffset + FVector(0.0f, 0.0f, AttackTraceHalfHeight);
 }
