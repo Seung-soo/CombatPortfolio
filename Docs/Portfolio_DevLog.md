@@ -298,3 +298,35 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - DummyTarget listens to HealthComponent events and performs visual reactions.
 - Hit reaction uses Timer instead of Tick.
 - Death handling currently uses temporary visual feedback and collision disabling.
+
+
+## Episode 12
+
+### Goal
+
+공격 중 입력을 무시하지 않고, 특정 Combo Input Window 안에서 다음 공격으로 예약하는 기본 콤보 시스템을 구현한다.
+
+### Completed
+
+- Added combo state variables to `UCombatComponent`
+  - `CurrentComboIndex`
+  - `bComboInputWindowOpen`
+  - `bComboInputBuffered`
+- Added `ComboSectionNames`
+- Updated `RequestAttack()` to handle attack input during attacking state
+- Implemented combo input buffering
+- Implemented combo commit using montage section jump
+- Created `UCombatAnimNotifyState_ComboInputWindow`
+- Added ComboInputWindow Notify State to attack montage
+- Added combo debug output to player character
+- Configured montage sections:
+  - `Attack_1`
+  - `Attack_2`
+  - `Attack_3`
+
+### Technical Notes
+
+- HitWindow controls damage timing.
+- ComboInputWindow controls input buffering timing.
+- Combo input is accepted only while ComboInputWindow is open.
+- Current implementation uses `Montage_JumpToSection`; later it may be improved with section transition control.

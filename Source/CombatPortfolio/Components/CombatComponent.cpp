@@ -14,6 +14,10 @@ UCombatComponent::UCombatComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
+	
+	ComboSectionNames.Add(TEXT("Attack_1"));
+	ComboSectionNames.Add(TEXT("Attack_2"));
+	ComboSectionNames.Add(TEXT("Attack_3"));
 }
 
 
@@ -41,12 +45,17 @@ void UCombatComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
 
 bool UCombatComponent::RequestAttack()
 {
-	if (false == CanStartAttack())
+	if (CombatActionState == ECombatActionState::Idle)
 	{
-		return false;
+		return StartAttack();
 	}
 	
-	return StartAttack();
+	if (CombatActionState == ECombatActionState::Attacking)
+	{
+		return TryBufferComboInput();
+	}
+	
+	return false;
 }
 
 bool UCombatComponent::CanStartAttack() const
@@ -62,6 +71,21 @@ bool UCombatComponent::IsAttacking() const
 bool UCombatComponent::IsHitWindowOpen() const
 {
 	return bHitWindowOpen;
+}
+
+bool UCombatComponent::IsComboInputWindowOpen() const
+{
+	return bComboInputWindowOpen;
+}
+
+bool UCombatComponent::HasBufferedComboInput() const
+{
+	return bComboInputBuffered;
+}
+
+int UCombatComponent::GetCurrentComboIndex() const
+{
+	return CurrentComboIndex;
 }
 
 int32 UCombatComponent::GetHitActorCountThisAttack() const
@@ -88,6 +112,27 @@ void UCombatComponent::EndHitWindow()
 	SetComponentTickEnabled(false);
 }
 
+void UCombatComponent::BeginComboInputWindow()
+{
+	if (false == IsAttacking())
+	{
+		return;
+	}
+	
+	if (false == CanMoveToNextCombo())
+	{
+		return;
+	}
+	
+	SetComboInputWindowOpen(true);
+}
+
+void UCombatComponent::EndComboInputWindow()
+{
+	SetComboInputWindowOpen(false);
+	TryCommitBufferedCombo();
+}
+
 ECombatActionState UCombatComponent::GetCombatActionState() const
 {
 	return CombatActionState;
@@ -109,12 +154,21 @@ bool UCombatComponent::StartAttack()
 		return false;
 	}
 	
+	ResetComboState();
+	
 	const float MontageDuration = AnimInstance->Montage_Play(AttackMontage, AttackPlayRate);
 	
 	if (0.0f >= MontageDuration)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Attack failed: Montage_Play returned 0."));
 		return false;
+	}
+	
+	const FName FirstSectionName = GetCurrentComboSectionName();
+	
+	if (NAME_None != FirstSectionName)
+	{
+		AnimInstance->Montage_JumpToSection(FirstSectionName, AttackMontage);
 	}
 	
 	FOnMontageEnded MontageEndedDelegate;
@@ -126,13 +180,117 @@ bool UCombatComponent::StartAttack()
 	return true;
 }
 
+bool UCombatComponent::TryBufferComboInput()
+{
+	if (false == IsComboInputWindowOpen())
+	{
+		return false;
+	}
+	
+	if (false == CanMoveToNextCombo())
+	{
+		return false;
+	}
+	
+	SetComboInputBuffered(true);
+	
+	UE_LOG(LogTemp, Log, TEXT("Combo input buffered. CurrentComboIndex: %d"), CurrentComboIndex);
+	
+	return true;
+}
+
+bool UCombatComponent::TryCommitBufferedCombo()
+{
+	if (false == HasBufferedComboInput())
+	{
+		return false;
+	}
+	
+	if (false == CanMoveToNextCombo())
+	{
+		SetComboInputBuffered(false);
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = GetOwnerAnimInstance();
+	
+	if (nullptr == AnimInstance)
+	{
+		SetComboInputBuffered(false);
+		return false;
+	}
+	
+	CurrentComboIndex++;
+	
+	const FName NextSectionName = GetCurrentComboSectionName();
+	
+	if (NAME_None == NextSectionName)
+	{
+		SetComboInputBuffered(false);
+		return false;
+	}
+	
+	HitActorsThisAttack.Reset();
+	
+	SetHitWindowOpen(false);
+	SetComponentTickEnabled(false);
+	SetComboInputWindowOpen(false);
+	SetComboInputBuffered(false);
+	
+	AnimInstance->Montage_JumpToSection(NextSectionName, AttackMontage);
+	
+	UE_LOG(LogTemp, Log, TEXT("Combo committed. Jump to section: %s"), *NextSectionName.ToString());
+	
+	OnComboStateChanged.Broadcast();
+	
+	return true;
+}
+
+bool UCombatComponent::CanMoveToNextCombo() const
+{
+	return ComboSectionNames.IsValidIndex(CurrentComboIndex + 1);
+}
+
+FName UCombatComponent::GetCurrentComboSectionName() const
+{
+	if (false == ComboSectionNames.IsValidIndex(CurrentComboIndex))
+	{
+		return NAME_None;
+	}
+	
+	return ComboSectionNames[CurrentComboIndex];
+}
+
+FName UCombatComponent::GetNextComboSectionName() const
+{
+	if (false == ComboSectionNames.IsValidIndex(CurrentComboIndex + 1))
+	{
+		return NAME_None;
+	}
+	
+	return ComboSectionNames[CurrentComboIndex + 1];
+}
+
 void UCombatComponent::FinishAttack()
 {
 	SetHitWindowOpen(false);
+	SetComboInputWindowOpen(false);
+	SetComboInputBuffered(false);
 	SetComponentTickEnabled(false);
 	HitActorsThisAttack.Reset();
 	
+	ResetComboState();
+	
 	SetCombatActionState(ECombatActionState::Idle);
+}
+
+void UCombatComponent::ResetComboState()
+{
+	CurrentComboIndex = 0;
+	bComboInputWindowOpen = false;
+	bComboInputBuffered = false;
+	
+	OnComboStateChanged.Broadcast();
 }
 
 UAnimInstance* UCombatComponent::GetOwnerAnimInstance() const
@@ -186,6 +344,30 @@ void UCombatComponent::SetHitWindowOpen(bool bNewHitWindowOpen)
 	bHitWindowOpen = bNewHitWindowOpen;
 	
 	OnHitWindowChanged.Broadcast();
+}
+
+void UCombatComponent::SetComboInputWindowOpen(bool bNewComboInputWindowOpen)
+{
+	if (bComboInputWindowOpen == bNewComboInputWindowOpen)
+	{
+		return;
+	}
+	
+	bComboInputWindowOpen = bNewComboInputWindowOpen;
+	
+	OnComboStateChanged.Broadcast();
+}
+
+void UCombatComponent::SetComboInputBuffered(bool bNewComboInputBuffered)
+{
+	if (bComboInputBuffered == bNewComboInputBuffered)
+	{
+		return;
+	}
+	
+	bComboInputBuffered = bNewComboInputBuffered;
+	
+	OnComboStateChanged.Broadcast();
 }
 
 void UCombatComponent::PerformAttackTrace()

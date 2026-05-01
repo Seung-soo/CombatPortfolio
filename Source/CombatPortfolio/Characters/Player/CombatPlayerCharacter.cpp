@@ -335,6 +335,21 @@ FString ACombatPlayerCharacter::GetHitWindowDebugString() const
 	return true == CombatComponent->IsHitWindowOpen() ? TEXT("Open") : TEXT("Closed");
 }
 
+FString ACombatPlayerCharacter::GetComboDebugString() const
+{
+	if (nullptr == CombatComponent)
+	{
+		return TEXT("None");
+	}
+	
+	const int32 DisplayComboIndex = CombatComponent->GetCurrentComboIndex() + 1;
+	const FString WindowState = true == CombatComponent->IsComboInputWindowOpen() ? TEXT("Open") : TEXT("Closed");
+	
+	const FString BufferedState = true == CombatComponent->HasBufferedComboInput() ? TEXT("Buffered") : TEXT("None");
+	
+	return FString::Printf(TEXT("%d | Window: %s | Buffer: %s"), DisplayComboIndex, *WindowState, *BufferedState);
+}
+
 int32 ACombatPlayerCharacter::GetHitActorCountDebug() const
 {
 	if (nullptr == CombatComponent)
@@ -401,10 +416,11 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
 		*GetCombatStateDebugString(),
+		*GetComboDebugString(),
 		*GetHitWindowDebugString(),
 		GetHitActorCountDebug(),
 		GroundSpeed,

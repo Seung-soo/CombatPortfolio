@@ -20,6 +20,7 @@ enum class ECombatActionState : uint8
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitWindowChangedSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnComboStateChangedSignature);
 
 UCLASS(ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
 class COMBATPORTFOLIO_API UCombatComponent : public UActorComponent
@@ -40,11 +41,17 @@ public:
 	bool CanStartAttack() const;
 	bool IsAttacking() const;
 	bool IsHitWindowOpen() const;
+	bool IsComboInputWindowOpen() const;
+	bool HasBufferedComboInput() const;
+	int GetCurrentComboIndex() const;
 	int32 GetHitActorCountThisAttack() const;
 	ECombatActionState GetCombatActionState() const;
 	
 	void BeginHitWindow();
 	void EndHitWindow();
+	
+	void BeginComboInputWindow();
+	void EndComboInputWindow();
 	
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
@@ -53,9 +60,21 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
 	FOnHitWindowChangedSignature OnHitWindowChanged;
 	
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
+	FOnComboStateChangedSignature OnComboStateChanged;
+	
 private:
 	bool StartAttack();
+	
+	bool TryBufferComboInput();
+	bool TryCommitBufferedCombo();
+	bool CanMoveToNextCombo() const;
+	FName GetCurrentComboSectionName() const;
+	FName GetNextComboSectionName() const;
+	
 	void FinishAttack();
+	
+	void ResetComboState();
 	
 	UAnimInstance* GetOwnerAnimInstance() const;
 	
@@ -64,6 +83,9 @@ private:
 	void SetCombatActionState(ECombatActionState NewCombatActionState);
 	
 	void SetHitWindowOpen(bool bNewHitWindowOpen);
+	
+	void SetComboInputWindowOpen(bool bNewComboInputWindowOpen);
+	void SetComboInputBuffered(bool bNewComboInputBuffered);
 	
 	void PerformAttackTrace();
 	void ApplyDamageToHitActor(AActor* HitActor);
@@ -76,6 +98,9 @@ private:
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> AttackMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
+	TArray<FName> ComboSectionNames;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	float AttackPlayRate = 1.0f;
@@ -100,6 +125,15 @@ private:
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
 	bool bHitWindowOpen = false;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
+	int32 CurrentComboIndex = 0;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
+	bool bComboInputWindowOpen = false;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
+	bool bComboInputBuffered = false;
 	
 private:
 	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;
