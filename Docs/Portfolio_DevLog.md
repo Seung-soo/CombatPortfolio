@@ -473,3 +473,32 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - EnemyAttackComponent performs simple forward sphere sweep.
 - Damage is blocked if the target CombatComponent is invincible.
 - DummyEnemy is a temporary combat test actor before full AI implementation.
+
+## Episode 18
+
+### Goal
+
+락온 대상 탐색, 저장, 해제, 타겟 바라보기 회전을 구현해 전투 중 대상 중심 조작의 기반을 만든다.
+
+### Completed
+
+- Added `IA_LockOn`
+- Mapped lock-on input to Middle Mouse Button or Tab
+- Created `ULockOnComponent`
+- Implemented lock-on target search with overlap sphere
+- Filtered targets by HealthComponent and death state
+- Added front-angle filtering using dot product
+- Selected nearest valid target
+- Added LockOnTarget validation while locked on
+- Added lock-on target changed event
+- Added LockOnComponent to player character
+- Changed RotationMode to Strafe while locked on
+- Rotated player toward lock-on target during Tick
+- Added lock-on debug output
+
+### Technical Notes
+
+- Lock-on is treated as a separate targeting mode, not a CombatActionState.
+- Character owns rotation behavior while LockOnComponent owns target selection.
+- LockOnComponent Tick is enabled only while locked on.
+- Current target selection uses nearest valid target; future versions may use camera/screen-center scoring.

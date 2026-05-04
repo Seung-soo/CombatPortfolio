@@ -12,6 +12,7 @@ class UInputAction;
 class UCombatComponent;
 class UStaminaComponent;
 class UHealthComponent;
+class ULockOnComponent;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -66,6 +67,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UHealthComponent> HealthComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULockOnComponent> LockOnComponent;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -88,6 +92,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> DodgeAction;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> LockOnAction;
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
@@ -139,6 +146,10 @@ private:
 	float DodgeStaminaCost = 25.0f;
 	
 private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float LockOnRotationInterpSpeed = 12.0f;
+	
+private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug", meta = (AllowPrivateAccess = "true"))
 	bool bShowMovementDebug = true;
 
@@ -165,6 +176,12 @@ private:
 	bool IsCombatAttacking() const;
 	bool IsCombatDodging() const;
 	
+	void ToggleLockOn();
+	void UpdateLockOnRotation(float DeltaSeconds);
+	bool IsLockedOn() const;
+	
+	void UpdateCharacterTickEnabled();
+	
 	UFUNCTION()
 	void HandleCombatActionStateChanged();
 	
@@ -176,6 +193,9 @@ private:
 	
 	UFUNCTION()
 	void HandleDeath();
+	
+	UFUNCTION()
+	void HandleLockOnTargetChanged();
 	
 	FVector GetDodgeDirection() const;
 	
@@ -190,6 +210,8 @@ private:
 	FString GetComboDebugString() const;
 	
 	FString GetInvincibilityDebugString() const;
+	
+	FString GetLockOnDebugString() const;
 	
 	int32 GetHitActorCountDebug() const;
 	

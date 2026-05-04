@@ -11,6 +11,7 @@
 #include "CombatPortfolio/Components/CombatComponent.h"
 #include "CombatPortfolio/Components/StaminaComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
+#include "CombatPortfolio/Components/LockOnComponent.h"
 
 // Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
@@ -47,6 +48,8 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	StaminaComponent = CreateDefaultSubobject<UStaminaComponent>(TEXT("StaminaComponent"));
 	
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+	
+	LockOnComponent = CreateDefaultSubobject<ULockOnComponent>(TEXT("LockOnComponent"));
 }
 
 void ACombatPlayerCharacter::DebugApplyDamageToPlayer(float DamageAmount)
@@ -92,17 +95,23 @@ void ACombatPlayerCharacter::BeginPlay()
 		HealthComponent->OnDeath.AddDynamic(this, &ACombatPlayerCharacter::HandleDeath);
 	}
 	
+	if (nullptr != LockOnComponent)
+	{
+		LockOnComponent->OnLockOnTargetChaged.AddDynamic(this, &ACombatPlayerCharacter::HandleLockOnTargetChanged);
+	}
+	
 	ApplyRotationMode();
 	UpdateMovementState();
 	UpdateMovementSpeed();
 	
-	SetActorTickEnabled(bShowMovementDebug);
+	UpdateCharacterTickEnabled();
 }
 
 void ACombatPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	UpdateLockOnRotation(DeltaTime);
 	PrintMovementDebug();
 }
 
@@ -156,6 +165,11 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 	if (nullptr != DodgeAction)
 	{
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Dodge);
+	}
+	
+	if (nullptr != LockOnAction)
+	{
+		EnhancedInputComponent->BindAction(LockOnAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::ToggleLockOn);
 	}
 }
 
@@ -286,7 +300,7 @@ void ACombatPlayerCharacter::ApplyRotationMode()
 		MovementComponent->bOrientRotationToMovement = true;
 		break;
 	case ECombatRotationMode::Strafe:
-		bUseControllerRotationYaw = true;
+		bUseControllerRotationYaw = false;
 		MovementComponent->bOrientRotationToMovement = false;
 		break;
 	default:
@@ -419,6 +433,66 @@ bool ACombatPlayerCharacter::IsCombatDodging() const
 	return nullptr != CombatComponent && true == CombatComponent->IsDodging();
 }
 
+void ACombatPlayerCharacter::ToggleLockOn()
+{
+	if (nullptr == LockOnComponent)
+	{
+		return;
+	}
+	
+	LockOnComponent->ToggleLockOn();
+}
+
+void ACombatPlayerCharacter::UpdateLockOnRotation(float DeltaSeconds)
+{
+	if (false == IsLockedOn())
+	{
+		return;
+	}
+	
+	if (nullptr == LockOnComponent)
+	{
+		return;
+	}
+	
+	AActor* TargetActor = LockOnComponent->GetLockOnTarget();
+	
+	if (nullptr == TargetActor)
+	{
+		return;
+	}
+	
+	const FVector ActorLocation = GetActorLocation();
+	const FVector TargetLocation = TargetActor->GetActorLocation();
+	
+	FVector ToTarget = TargetLocation - ActorLocation;
+	ToTarget.Z = 0.0f;
+	
+	if (true == ToTarget.IsNearlyZero())
+	{
+		return;
+	}
+	
+	const FRotator TargetRotation = ToTarget.Rotation();
+	const FRotator CurrentRotation = GetActorRotation();
+	
+	const FRotator NewRotation = FMath::RInterpTo(CurrentRotation, FRotator(0.0f, TargetRotation.Yaw, 0.0f), DeltaSeconds, LockOnRotationInterpSpeed);
+	
+	SetActorRotation(NewRotation);
+}
+
+bool ACombatPlayerCharacter::IsLockedOn() const
+{
+	return nullptr != LockOnComponent && true == LockOnComponent->IsLockedOn();
+}
+
+void ACombatPlayerCharacter::UpdateCharacterTickEnabled()
+{
+	const bool bShouldTick = true == bShowMovementDebug || true == IsLockedOn();
+	
+	SetActorTickEnabled(bShouldTick);
+}
+
 FVector ACombatPlayerCharacter::GetDodgeDirection() const
 {
 	if (nullptr == Controller)
@@ -450,6 +524,23 @@ FString ACombatPlayerCharacter::GetInvincibilityDebugString() const
 	}
 	
 	return true == CombatComponent->IsInvincible() ? TEXT("Invincible") : TEXT("Vulnerable");
+}
+
+FString ACombatPlayerCharacter::GetLockOnDebugString() const
+{
+	if (nullptr == LockOnComponent)
+	{
+		return TEXT("None");
+	}
+	
+	AActor* TargetActor = LockOnComponent->GetLockOnTarget();
+	
+	if (nullptr == TargetActor)
+	{
+		return TEXT("Unlocked");
+	}
+	
+	return TargetActor->GetName();
 }
 
 bool ACombatPlayerCharacter::IsCombatAttacking() const
@@ -500,6 +591,20 @@ void ACombatPlayerCharacter::HandleDeath()
 	{
 		MovementComponent->DisableMovement();
 	}
+}
+
+void ACombatPlayerCharacter::HandleLockOnTargetChanged()
+{
+	if (true == IsLockedOn())
+	{
+		SetRotationMode(ECombatRotationMode::Strafe);
+	}
+	else
+	{
+		SetRotationMode(ECombatRotationMode::OrientToMovement);
+	}
+	
+	UpdateCharacterTickEnabled();
 }
 
 FString ACombatPlayerCharacter::GetStaminaDebugString() const
@@ -636,9 +741,10 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | HP: %s | IFrame: %s | Stamina: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | LockOn: %s | CombatState: %s | HP: %s | IFrame: %s | Stamina: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
+		*GetLockOnDebugString(),
 		*GetCombatStateDebugString(),
 		*GetHealthDebugString(),
 		*GetInvincibilityDebugString(),
