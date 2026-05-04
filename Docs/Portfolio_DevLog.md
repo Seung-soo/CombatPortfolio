@@ -419,3 +419,29 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - Stamina regeneration starts after a delay.
 - Component Tick is enabled only while stamina is draining or regenerating.
 - StaminaComponent owns stamina state; Character decides which actions consume stamina.
+
+
+
+## Episode 16
+
+### Goal
+
+플레이어에게 HealthComponent를 추가하고, 회피 무적 상태를 실제 데미지 처리 흐름에 연결한다.
+
+### Completed
+
+- Added HealthComponent to `ACombatPlayerCharacter`
+- Bound player health and death event handlers
+- Added player health debug output
+- Added temporary `DebugApplyDamageToPlayer()` function
+- Added invincibility check before applying damage
+- Blocked damage when target CombatComponent is invincible
+- Connected dodge IFrame state to actual damage prevention
+- Added temporary player death handling
+
+### Technical Notes
+
+- CombatComponent checks target invincibility before applying damage.
+- HealthComponent remains responsible only for health and death state.
+- Player can now receive damage through HealthComponent.
+- Debug damage function is temporary until enemy attacks are implemented.

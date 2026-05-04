@@ -11,6 +11,7 @@ class USpringArmComponent;
 class UInputAction;
 class UCombatComponent;
 class UStaminaComponent;
+class UHealthComponent;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -36,6 +37,9 @@ class COMBATPORTFOLIO_API ACombatPlayerCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	ACombatPlayerCharacter();
+	
+	UFUNCTION(BlueprintCallable, Category = "Debug")
+	void DebugApplyDamageToPlayer(float DamageAmount);
 
 protected:
 	// Called when the game starts or when spawned
@@ -59,6 +63,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaminaComponent> StaminaComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UHealthComponent> HealthComponent;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -164,9 +171,17 @@ private:
 	UFUNCTION()
 	void HandleStaminaDepleted();
 	
+	UFUNCTION()
+	void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta);
+	
+	UFUNCTION()
+	void HandleDeath();
+	
 	FVector GetDodgeDirection() const;
 	
 	FString GetStaminaDebugString() const;
+	
+	FString GetHealthDebugString() const;
 	
 	FString GetCombatStateDebugString() const;
 	

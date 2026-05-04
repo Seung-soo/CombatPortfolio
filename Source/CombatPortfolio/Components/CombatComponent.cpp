@@ -720,6 +720,12 @@ void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
 		return;
 	}
 	
+	if (true == IsDamageBlockedByInvincibility(HitActor))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Damage blocked by invincibility: %s"), *HitActor->GetName());
+		return;
+	}
+	
 	UHealthComponent* HealthComponent = HitActor->FindComponentByClass<UHealthComponent>();
 	
 	if (nullptr == HealthComponent)
@@ -810,4 +816,21 @@ FVector UCombatComponent::GetAttackTraceEndLocation() const
 	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
 	
 	return OwnerLocation + ForwardVector * CurrentAttackData->TraceForwardOffset + FVector(0.0f, 0.0f, CurrentAttackData->TraceHalfHeight);
+}
+
+bool UCombatComponent::IsDamageBlockedByInvincibility(const AActor* TargetActor) const
+{
+	if (nullptr == TargetActor)
+	{
+		return false;
+	}
+	
+	const UCombatComponent* TargetCombatComponent = TargetActor->FindComponentByClass<UCombatComponent>();
+	
+	if (nullptr == TargetCombatComponent)
+	{
+		return false;
+	}
+	
+	return TargetCombatComponent->IsInvincible();
 }

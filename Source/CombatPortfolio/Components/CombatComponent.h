@@ -139,6 +139,8 @@ private:
 	void RegisterHitActor(AActor* HitActor);
 	FVector GetAttackTraceStartLocation() const;
 	FVector GetAttackTraceEndLocation() const;
+	
+	bool IsDamageBlockedByInvincibility(const AActor* TargetActor) const;
 
 	
 private:

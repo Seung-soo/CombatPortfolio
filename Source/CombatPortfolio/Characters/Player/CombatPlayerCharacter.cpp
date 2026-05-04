@@ -10,6 +10,7 @@
 #include "InputActionValue.h"
 #include "CombatPortfolio/Components/CombatComponent.h"
 #include "CombatPortfolio/Components/StaminaComponent.h"
+#include "CombatPortfolio/Components/HealthComponent.h"
 
 // Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
@@ -44,6 +45,30 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 	
 	StaminaComponent = CreateDefaultSubobject<UStaminaComponent>(TEXT("StaminaComponent"));
+	
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+}
+
+void ACombatPlayerCharacter::DebugApplyDamageToPlayer(float DamageAmount)
+{
+	if (nullptr == HealthComponent)
+	{
+		return;
+	}
+	
+	if (nullptr != CombatComponent && true == CombatComponent->IsInvincible())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Debug damage blocked: Player is invincible"));
+		
+		if (nullptr != GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Cyan, TEXT("Damage Blocked by IFrame"));
+		}
+		
+		return;
+	}
+	
+	HealthComponent->ApplyDamage(DamageAmount);
 }
 
 // Called when the game starts or when spawned
@@ -59,6 +84,12 @@ void ACombatPlayerCharacter::BeginPlay()
 	if (nullptr != StaminaComponent)
 	{
 		StaminaComponent->OnStaminaDepleted.AddDynamic(this, &ACombatPlayerCharacter::HandleStaminaDepleted);
+	}
+	
+	if (nullptr != HealthComponent)
+	{
+		HealthComponent->OnHealthChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleHealthChanged);
+		HealthComponent->OnDeath.AddDynamic(this, &ACombatPlayerCharacter::HandleDeath);
 	}
 	
 	ApplyRotationMode();
@@ -440,6 +471,37 @@ void ACombatPlayerCharacter::HandleStaminaDepleted()
 	UpdateMovementSpeed();
 }
 
+void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
+{
+	UE_LOG(LogTemp, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
+	
+	if (0.0f > Delta && nullptr != GEngine)
+	{
+		const FString DebugText = FString::Printf(TEXT("Player Hit! HP: %.1f / %.1f"), CurrentHealth, MaxHealth);
+		
+		GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, DebugText);
+	}
+}
+
+void ACombatPlayerCharacter::HandleDeath()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Player died"));
+	
+	if (nullptr != GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Player Dead"));
+	}
+	
+	DisableInput(nullptr);
+	
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr != MovementComponent)
+	{
+		MovementComponent->DisableMovement();
+	}
+}
+
 FString ACombatPlayerCharacter::GetStaminaDebugString() const
 {
 	if (nullptr == StaminaComponent)
@@ -450,6 +512,16 @@ FString ACombatPlayerCharacter::GetStaminaDebugString() const
 	const FString DrainState = StaminaComponent->IsDrainingStamina() ? TEXT("Drain") : TEXT("NoDrain");
 	
 	return FString::Printf(TEXT("%.1f / %.1f | %s"), StaminaComponent->GetCurrentStamina(), StaminaComponent->GetMaxStamina(), *DrainState);
+}
+
+FString ACombatPlayerCharacter::GetHealthDebugString() const
+{
+	if (nullptr == HealthComponent)
+	{
+		return TEXT("None");
+	}
+	
+	return FString::Printf(TEXT("%.1f / %.1f"), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
 }
 
 FString ACombatPlayerCharacter::GetCombatStateDebugString() const
@@ -564,10 +636,11 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | IFrame: %s | Stamina: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | HP: %s | IFrame: %s | Stamina: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
 		*GetCombatStateDebugString(),
+		*GetHealthDebugString(),
 		*GetInvincibilityDebugString(),
 		*GetStaminaDebugString(),
 		*GetComboDebugString(),
