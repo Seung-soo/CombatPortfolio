@@ -43,6 +43,9 @@ private:
 	void SetLockOnTarget(AActor* NewTarget);
 	void UpdateLockOnValidation();
 	
+	void ShowTargetMarker(AActor* TargetActor) const;
+	void HideTargetMarker(AActor* TargetActor) const;
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true", ClampMin = "100.0"))
 	float LockOnRadius = 1200.0f;

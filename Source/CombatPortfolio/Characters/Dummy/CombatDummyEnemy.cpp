@@ -5,6 +5,7 @@
 
 #include "CombatPortfolio/Components/EnemyAttackComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
+#include "CombatPortfolio/Components/LockOnMarkerComponent.h"
 #include "Components/CapsuleComponent.h"
 
 // Sets default values
@@ -27,6 +28,9 @@ ACombatDummyEnemy::ACombatDummyEnemy()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	
 	EnemyAttackComponent = CreateDefaultSubobject<UEnemyAttackComponent>(TEXT("EnemyAttackComponent"));
+	
+	LockOnMarkerComponent = CreateDefaultSubobject<ULockOnMarkerComponent>(TEXT("LockOnMarkerComponent"));
+	LockOnMarkerComponent->SetupAttachment(CapsuleComponent);
 }
 
 // Called when the game starts or when spawned
@@ -69,5 +73,10 @@ void ACombatDummyEnemy::ApplyDeathState()
 	if (nullptr != EnemyAttackComponent)
 	{
 		EnemyAttackComponent->StopAutoAttack();
+	}
+	
+	if (nullptr != LockOnMarkerComponent)
+	{
+		LockOnMarkerComponent->HideMarker();
 	}
 }

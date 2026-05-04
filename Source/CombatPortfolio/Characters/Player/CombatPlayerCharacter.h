@@ -161,6 +161,7 @@ private:
 
 private:
 	void Move(const FInputActionValue& Value);
+	void StopMove();
 	void Look(const FInputActionValue& Value);
 	
 	void StartWalk();

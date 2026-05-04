@@ -531,3 +531,32 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - Lock-on dodge uses target-relative direction.
 - Character owns dodge direction policy.
 - CombatComponent remains independent from lock-on details and only receives the final dodge direction.
+
+
+
+## Episode 20
+
+### Goal
+
+락온 대상 머리 위에 UI 마커를 표시해 플레이어가 현재 락온 대상을 명확히 인식할 수 있도록 한다.
+
+### Completed
+
+- Added UMG module dependency
+- Created `ULockOnMarkerComponent`
+- Derived lock-on marker from `UWidgetComponent`
+- Added marker show/hide API
+- Added LockOnMarkerComponent to DummyEnemy
+- Created `WBP_LockOnMarker`
+- Assigned marker widget to DummyEnemy
+- Updated LockOnComponent to show marker on lock-on
+- Updated LockOnComponent to hide marker on lock-on clear
+- Hid marker when DummyEnemy dies
+- Verified marker visibility follows LockOnTarget state
+
+### Technical Notes
+
+- Lock-on marker is owned by the target actor.
+- LockOnComponent controls marker visibility through LockOnMarkerComponent.
+- Marker visibility is driven by LockOnTarget state changes.
+- WidgetComponent is used to display UMG UI in the world.

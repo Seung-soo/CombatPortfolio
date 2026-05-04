@@ -132,6 +132,8 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 	if (nullptr != MoveAction)
 	{
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Move);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::StopMove);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Canceled, this, &ACombatPlayerCharacter::StopMove);
 	}
 
 	if (nullptr != LookAction)
@@ -196,6 +198,11 @@ void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 
 	AddMovementInput(ForwardDirection, MovementVector.Y);
 	AddMovementInput(RightDirection, MovementVector.X);
+}
+
+void ACombatPlayerCharacter::StopMove()
+{
+	LastMovementInputVector = FVector2D::ZeroVector;
 }
 
 void ACombatPlayerCharacter::Look(const FInputActionValue& Value)

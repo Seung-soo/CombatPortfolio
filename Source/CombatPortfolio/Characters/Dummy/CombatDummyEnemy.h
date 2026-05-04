@@ -10,6 +10,7 @@ class UCapsuleComponent;
 class UStaticMeshComponent;
 class UHealthComponent;
 class UEnemyAttackComponent;
+class ULockOnMarkerComponent;
 
 UCLASS()
 class COMBATPORTFOLIO_API ACombatDummyEnemy : public APawn
@@ -36,6 +37,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UEnemyAttackComponent> EnemyAttackComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
+	TObjectPtr<ULockOnMarkerComponent> LockOnMarkerComponent;
 	
 private:
 	UFUNCTION()

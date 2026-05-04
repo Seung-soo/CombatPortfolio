@@ -5,6 +5,7 @@
 #include "HealthComponent.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
+#include "LockOnMarkerComponent.h"
 #include "Engine/OverlapResult.h"
 
 // Sets default values for this component's properties
@@ -231,14 +232,18 @@ float ULockOnComponent::GetDistanceToTarget(const AActor* CandidateActor) const
 
 void ULockOnComponent::SetLockOnTarget(AActor* NewTarget)
 {
-	const AActor* OldTarget = LockOnTarget.Get();
+	AActor* OldTarget = LockOnTarget.Get();
 	
 	if (OldTarget == NewTarget)
 	{
 		return;
 	}
 	
+	HideTargetMarker(OldTarget);
+	
 	LockOnTarget = NewTarget;
+	
+	ShowTargetMarker(NewTarget);
 	
 	SetComponentTickEnabled(IsLockedOn());
 	
@@ -268,5 +273,40 @@ void ULockOnComponent::UpdateLockOnValidation()
 		ClearLockOnTarget();
 		return;
 	}
+}
+
+void ULockOnComponent::ShowTargetMarker(AActor* TargetActor) const
+{
+	if (nullptr == TargetActor)
+	{
+		return;
+	}
+	
+	ULockOnMarkerComponent* MarkerComponent = TargetActor->FindComponentByClass<ULockOnMarkerComponent>();
+	
+	if (nullptr == MarkerComponent)
+	{
+		UE_LOG(LogTemp, Log, TEXT("LockOn target has no LockOnMarkerComponent: %s"), *TargetActor->GetName());
+		return;
+	}
+	
+	MarkerComponent->ShowMarker();
+}
+
+void ULockOnComponent::HideTargetMarker(AActor* TargetActor) const
+{
+	if (nullptr == TargetActor)
+	{
+		return;
+	}
+	
+	ULockOnMarkerComponent* MarkerComponent = TargetActor->FindComponentByClass<ULockOnMarkerComponent>();
+	
+	if (nullptr == MarkerComponent)
+	{
+		return;
+	}
+	
+	MarkerComponent->HideMarker();
 }
 
