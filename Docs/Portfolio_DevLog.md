@@ -445,3 +445,31 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - HealthComponent remains responsible only for health and death state.
 - Player can now receive damage through HealthComponent.
 - Debug damage function is temporary until enemy attacks are implemented.
+
+
+## Episode 17
+
+### Goal
+
+테스트 적이 플레이어를 공격할 수 있도록 EnemyAttackComponent와 CombatDummyEnemy를 구현하고, 플레이어 회피 무적이 실제 적 공격을 막는지 검증한다.
+
+### Completed
+
+- Created `UEnemyAttackComponent`
+- Added repeated enemy attack using Timer
+- Added enemy attack sphere sweep
+- Added enemy attack debug capsule
+- Applied damage to player HealthComponent
+- Checked target CombatComponent invincibility before damage
+- Created `ACombatDummyEnemy`
+- Added Capsule, Mesh, HealthComponent, and EnemyAttackComponent to DummyEnemy
+- Stopped enemy auto attack on death
+- Created `BP_CombatDummyEnemy`
+- Verified player can avoid enemy damage with dodge IFrame
+
+### Technical Notes
+
+- Enemy attack uses Timer instead of Tick.
+- EnemyAttackComponent performs simple forward sphere sweep.
+- Damage is blocked if the target CombatComponent is invincible.
+- DummyEnemy is a temporary combat test actor before full AI implementation.
