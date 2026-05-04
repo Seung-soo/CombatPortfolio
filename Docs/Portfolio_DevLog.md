@@ -502,3 +502,32 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - Character owns rotation behavior while LockOnComponent owns target selection.
 - LockOnComponent Tick is enabled only while locked on.
 - Current target selection uses nearest valid target; future versions may use camera/screen-center scoring.
+
+
+## Episode 19
+
+### Goal
+
+락온 상태에서 회피 방향을 타겟 기준으로 계산하도록 개선해 락온 전투 조작감을 강화한다.
+
+### Completed
+
+- Split dodge direction calculation into free and lock-on modes
+- Added `GetFreeDodgeDirection()`
+- Added `GetLockOnDodgeDirection()`
+- Added `GetPlanarDirectionToLockOnTarget()`
+- Updated `GetDodgeDirection()` to branch by lock-on state
+- Implemented target-relative dodge direction
+  - W: dodge toward target
+  - S: dodge away from target
+  - A/D: dodge sideways relative to target
+- Set no-input lock-on dodge to dodge away from target
+- Added optional dodge direction debug arrow
+- Preserved free camera-relative dodge behavior outside lock-on
+
+### Technical Notes
+
+- Free dodge uses camera-relative movement input.
+- Lock-on dodge uses target-relative direction.
+- Character owns dodge direction policy.
+- CombatComponent remains independent from lock-on details and only receives the final dodge direction.

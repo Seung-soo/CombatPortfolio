@@ -152,6 +152,12 @@ private:
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug", meta = (AllowPrivateAccess = "true"))
 	bool bShowMovementDebug = true;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Dodge|Debug", meta = (AllowPrivateAccess = "true"))
+	bool bDrawDodgeDirectionDebug = true;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Dodge|Debug", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float DodgeDirectionDebugLength = 250.0f;
 
 private:
 	void Move(const FInputActionValue& Value);
@@ -199,6 +205,12 @@ private:
 	
 	FVector GetDodgeDirection() const;
 	
+	FVector GetFreeDodgeDirection() const;
+	
+	FVector GetLockOnDodgeDirection() const;
+	
+	FVector GetPlanarDirectionToLockOnTarget() const;
+	
 	FString GetStaminaDebugString() const;
 	
 	FString GetHealthDebugString() const;
@@ -216,4 +228,6 @@ private:
 	int32 GetHitActorCountDebug() const;
 	
 	void PrintMovementDebug() const;
+	
+	void DrawDodgeDirectionDebug(const FVector& DodgeDirection) const;
 };

@@ -12,6 +12,7 @@
 #include "CombatPortfolio/Components/StaminaComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/LockOnComponent.h"
+#include "DrawDebugHelpers.h"
 
 // Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
@@ -409,6 +410,8 @@ void ACombatPlayerCharacter::Dodge()
 	
 	const FVector DodgeDirection = GetDodgeDirection();
 	
+	DrawDodgeDirectionDebug(DodgeDirection);
+	
 	if (false == DodgeDirection.IsNearlyZero())
 	{
 		const FRotator DodgeRotation = DodgeDirection.Rotation();
@@ -495,6 +498,16 @@ void ACombatPlayerCharacter::UpdateCharacterTickEnabled()
 
 FVector ACombatPlayerCharacter::GetDodgeDirection() const
 {
+	if (true == IsLockedOn())
+	{
+		return GetLockOnDodgeDirection();
+	}
+	
+	return GetFreeDodgeDirection();
+}
+
+FVector ACombatPlayerCharacter::GetFreeDodgeDirection() const
+{
 	if (nullptr == Controller)
 	{
 		return GetActorForwardVector();
@@ -514,6 +527,48 @@ FVector ACombatPlayerCharacter::GetDodgeDirection() const
 	}
 	
 	return DodgeDirection.GetSafeNormal();
+}
+
+FVector ACombatPlayerCharacter::GetLockOnDodgeDirection() const
+{
+	const FVector ForwardToTarget = GetPlanarDirectionToLockOnTarget();
+	
+	if (true == ForwardToTarget.IsNearlyZero())
+	{
+		return GetActorForwardVector();
+	}
+	
+	const FVector RightToTarget = FVector::CrossProduct(FVector::UpVector, ForwardToTarget).GetSafeNormal();
+	
+	FVector DodgeDirection = ForwardToTarget * LastMovementInputVector.Y + RightToTarget * LastMovementInputVector.X;
+	
+	if (true == DodgeDirection.IsNearlyZero())
+	{
+		DodgeDirection = -ForwardToTarget;
+	}
+	
+	return DodgeDirection.GetSafeNormal();
+}
+
+FVector ACombatPlayerCharacter::GetPlanarDirectionToLockOnTarget() const
+{
+	if (nullptr == LockOnComponent)
+	{
+		
+		return FVector::ZeroVector;
+	}
+	
+	AActor* TargetActor = LockOnComponent->GetLockOnTarget();
+	
+	if (nullptr == TargetActor)
+	{
+		return FVector::ZeroVector;
+	}
+	
+	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
+	ToTarget.Z = 0.0f;
+	
+	return ToTarget.GetSafeNormal();
 }
 
 FString ACombatPlayerCharacter::GetInvincibilityDebugString() const
@@ -762,6 +817,41 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 		0.0f,
 		FColor::Green,
 		DebugText
+	);
+}
+
+void ACombatPlayerCharacter::DrawDodgeDirectionDebug(const FVector& DodgeDirection) const
+{
+	if (false == bDrawDodgeDirectionDebug)
+	{
+		return;
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return;
+	}
+	
+	if (true == DodgeDirection.IsNearlyZero())
+	{
+		return;
+	}
+	
+	const FVector StartLocation = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+	const FVector EndLocation = StartLocation + DodgeDirection.GetSafeNormal() * DodgeDirectionDebugLength;
+	
+	DrawDebugDirectionalArrow(
+		World,
+		StartLocation,
+		EndLocation,
+		60.0f,
+		FColor::Cyan,
+		false,
+		1.0f,
+		0,
+		4.0f
 	);
 }
 
