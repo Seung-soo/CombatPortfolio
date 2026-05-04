@@ -9,6 +9,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputActionValue.h"
 #include "CombatPortfolio/Components/CombatComponent.h"
+#include "CombatPortfolio/Components/StaminaComponent.h"
 
 // Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
@@ -41,6 +42,8 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	FollowCamera->bUsePawnControlRotation = false;
 	
 	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
+	
+	StaminaComponent = CreateDefaultSubobject<UStaminaComponent>(TEXT("StaminaComponent"));
 }
 
 // Called when the game starts or when spawned
@@ -51,6 +54,11 @@ void ACombatPlayerCharacter::BeginPlay()
 	if (nullptr != CombatComponent)
 	{
 		CombatComponent->OnCombatActionStateChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleCombatActionStateChanged);
+	}
+	
+	if (nullptr != StaminaComponent)
+	{
+		StaminaComponent->OnStaminaDepleted.AddDynamic(this, &ACombatPlayerCharacter::HandleStaminaDepleted);
 	}
 	
 	ApplyRotationMode();
@@ -175,6 +183,21 @@ void ACombatPlayerCharacter::StartSprint()
 		return;
 	}
 	
+	if (nullptr == StaminaComponent)
+	{
+		return;
+	}
+	
+	if (false == StaminaComponent->HasEnoughStamina(MinStaminaToStartSprint))
+	{
+		return;
+	}
+	
+	if (false == StaminaComponent->StartStaminaDrain(SprintStaminaDrainRate))
+	{
+		return;
+	}
+	
 	bWantsToSprint = true;
 	
 	UpdateMovementState();
@@ -184,6 +207,11 @@ void ACombatPlayerCharacter::StartSprint()
 void ACombatPlayerCharacter::StopSprint()
 {
 	bWantsToSprint = false;
+	
+	if (nullptr != StaminaComponent)
+	{
+		StaminaComponent->StopStaminaDrain();
+	}
 	
 	UpdateMovementState();
 	UpdateMovementSpeed();
@@ -319,6 +347,21 @@ void ACombatPlayerCharacter::Dodge()
 		return;
 	}
 	
+	if (nullptr == StaminaComponent)
+	{
+		return;
+	}
+	
+	if (false == CombatComponent->CanStartDodge())
+	{
+		return;
+	}
+	
+	if (false == StaminaComponent->TrySpendStamina(DodgeStaminaCost))
+	{
+		return;
+	}
+	
 	const FVector DodgeDirection = GetDodgeDirection();
 	
 	if (false == DodgeDirection.IsNearlyZero())
@@ -335,7 +378,6 @@ void ACombatPlayerCharacter::Dodge()
 	}
 	
 	bWantsToSprint = false;
-	bWantsToWalk = false;
 	
 	UpdateMovementState();
 	UpdateMovementSpeed();
@@ -388,6 +430,26 @@ void ACombatPlayerCharacter::HandleCombatActionStateChanged()
 {
 	UpdateMovementState();
 	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::HandleStaminaDepleted()
+{
+	bWantsToSprint = false;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+FString ACombatPlayerCharacter::GetStaminaDebugString() const
+{
+	if (nullptr == StaminaComponent)
+	{
+		return TEXT("None");
+	}
+	
+	const FString DrainState = StaminaComponent->IsDrainingStamina() ? TEXT("Drain") : TEXT("NoDrain");
+	
+	return FString::Printf(TEXT("%.1f / %.1f | %s"), StaminaComponent->GetCurrentStamina(), StaminaComponent->GetMaxStamina(), *DrainState);
 }
 
 FString ACombatPlayerCharacter::GetCombatStateDebugString() const
@@ -502,11 +564,12 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 	const float ControlYaw = nullptr != Controller ? Controller->GetControlRotation().Yaw : 0.0f;
 	
 	const FString DebugText = FString::Printf(
-		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | IFrame: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
+		TEXT("MovementState: %s | RotationMode: %s | CombatState: %s | IFrame: %s | Stamina: %s | Combo: %s | HitWindow: %s | HitCount: %d | GroundSpeed: %.1f | MaxWalkSpeed: %.1f | ControlYaw: %.1f"),
 		*MovementStateString,
 		*RotationModeString,
 		*GetCombatStateDebugString(),
 		*GetInvincibilityDebugString(),
+		*GetStaminaDebugString(),
 		*GetComboDebugString(),
 		*GetHitWindowDebugString(),
 		GetHitActorCountDebug(),

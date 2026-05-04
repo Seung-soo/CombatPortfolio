@@ -389,3 +389,33 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - CombatComponent owns dodge state and invincibility state.
 - Dodge currently uses `LaunchCharacter` as a prototype movement method.
 - Future improvement may replace launch-based dodge with Root Motion or curve-driven movement.
+
+
+## Episode 15
+
+### Goal
+
+스프린트와 회피에 스태미나 비용을 연결하고, 스태미나 소모/회복/고갈 이벤트를 관리하는 StaminaComponent를 구현한다.
+
+### Completed
+
+- Created `UStaminaComponent`
+- Added `MaxStamina` and `CurrentStamina`
+- Implemented instant stamina spending with `TrySpendStamina()`
+- Implemented continuous stamina drain with `StartStaminaDrain()` and `StopStaminaDrain()`
+- Added stamina regeneration delay using Timer
+- Enabled StaminaComponent Tick only during drain or regeneration
+- Added `OnStaminaChanged` and `OnStaminaDepleted` delegates
+- Added StaminaComponent to player character
+- Connected sprint stamina drain
+- Connected dodge stamina cost
+- Stopped sprint automatically when stamina is depleted
+- Added stamina debug output
+
+### Technical Notes
+
+- Sprint uses continuous stamina drain.
+- Dodge uses instant stamina spending.
+- Stamina regeneration starts after a delay.
+- Component Tick is enabled only while stamina is draining or regenerating.
+- StaminaComponent owns stamina state; Character decides which actions consume stamina.

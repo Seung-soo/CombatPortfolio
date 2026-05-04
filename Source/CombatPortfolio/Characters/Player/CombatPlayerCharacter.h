@@ -10,6 +10,7 @@ class UCameraComponent;
 class USpringArmComponent;
 class UInputAction;
 class UCombatComponent;
+class UStaminaComponent;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -55,6 +56,9 @@ private:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCombatComponent> CombatComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaminaComponent> StaminaComponent;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -105,6 +109,7 @@ private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
 	bool bWantsToSprint = false;
 	
+	
 private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Rotation", meta = (AllowPrivateAccess = "true"))
 	ECombatRotationMode RotationMode = ECombatRotationMode::OrientToMovement;
@@ -115,6 +120,16 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	float LookSensitivityY = 1.0f;
+	
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float SprintStaminaDrainRate = 18.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float MinStaminaToStartSprint = 5.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float DodgeStaminaCost = 25.0f;
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug", meta = (AllowPrivateAccess = "true"))
@@ -146,7 +161,12 @@ private:
 	UFUNCTION()
 	void HandleCombatActionStateChanged();
 	
+	UFUNCTION()
+	void HandleStaminaDepleted();
+	
 	FVector GetDodgeDirection() const;
+	
+	FString GetStaminaDebugString() const;
 	
 	FString GetCombatStateDebugString() const;
 	
