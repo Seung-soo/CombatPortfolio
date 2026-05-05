@@ -6,6 +6,15 @@
 #include "CombatEnemyBase.h"
 #include "CombatMeleeEnemy.generated.h"
 
+UENUM(BlueprintType)
+enum class EMeleeEnemyState : uint8
+{
+	Idle UMETA(DisplayName = "Idle"),
+	Chasing UMETA(DisplayName = "Chasing"),
+	Attacking UMETA(DisplayName = "Attacking"),
+	Dead UMETA(DisplayName = "Dead")
+};
+
 /**
  * 
  */
@@ -28,11 +37,17 @@ private:
 	float GetDistanceToTarget() const;
 	bool IsTargetInsideDetectionRadius() const;
 	bool IsTargetInsideAttackRange() const;
+	bool IsTargetInsideStopDistance() const;
 	bool IsFacingTarget() const;
 	
 	FVector GetPlanarDirectionToTarget() const;
 	void UpdateFacingToTarget(float DeltaTime);
+	void UpdateChaseMovement(float DeltaTime);
 	void TryAttackTarget();
+	
+	void SetMeleeEnemyState(EMeleeEnemyState NewState);
+	
+	FString GetMeleeEnemyStateDebugString() const;
 	
 	void DrawMeleeDebug() const;
 	
@@ -44,6 +59,12 @@ private:
 	float AttackRange = 240.0f;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float StopDistance = 180.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float ChaseMoveSpeed = 280.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float FacingRotationInterpSpeed = 8.0f;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "180.0"))
@@ -51,6 +72,10 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDrawMeleeDebug = true;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true"))
+	EMeleeEnemyState MeleeEnemyState = EMeleeEnemyState::Idle;
+	
 	
 private:
 	TWeakObjectPtr<APawn> TargetPlayerPawn;

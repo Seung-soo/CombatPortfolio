@@ -22,6 +22,7 @@ void ACombatMeleeEnemy::BeginPlay()
 	Super::BeginPlay();
 	
 	CachePlayerPawn();
+	SetMeleeEnemyState(EMeleeEnemyState::Idle);
 }
 
 void ACombatMeleeEnemy::Tick(float DeltaTime)
@@ -30,12 +31,14 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	
 	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
 	{
+		SetMeleeEnemyState(EMeleeEnemyState::Dead);
 		return;
 	}
 	
 	if (false == HasValidTarget())
 	{
 		CachePlayerPawn();
+		SetMeleeEnemyState(EMeleeEnemyState::Idle);
 		return;
 	}
 	
@@ -46,18 +49,28 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	
 	if (false == IsTargetInsideDetectionRadius())
 	{
+		SetMeleeEnemyState(EMeleeEnemyState::Idle);
 		return;
 	}
 	
 	UpdateFacingToTarget(DeltaTime);
 	
+	if (false == IsTargetInsideStopDistance())
+	{
+		SetMeleeEnemyState(EMeleeEnemyState::Chasing);
+		UpdateChaseMovement(DeltaTime);
+		return;
+	}
+	
 	if (false == IsTargetInsideAttackRange())
 	{
+		SetMeleeEnemyState(EMeleeEnemyState::Idle);
 		return;
 	}
 	
 	if (false == IsFacingTarget())
 	{
+		SetMeleeEnemyState(EMeleeEnemyState::Idle);
 		return;
 	}
 	
@@ -68,6 +81,7 @@ void ACombatMeleeEnemy::ApplyDeathState()
 {
 	Super::ApplyDeathState();
 	
+	SetMeleeEnemyState(EMeleeEnemyState::Dead);
 	SetActorTickEnabled(false);
 	TargetPlayerPawn.Reset();
 }
@@ -102,6 +116,11 @@ bool ACombatMeleeEnemy::IsTargetInsideDetectionRadius() const
 bool ACombatMeleeEnemy::IsTargetInsideAttackRange() const
 {
 	return GetDistanceToTarget() <= AttackRange;
+}
+
+bool ACombatMeleeEnemy::IsTargetInsideStopDistance() const
+{
+	return GetDistanceToTarget() <= StopDistance;
 }
 
 bool ACombatMeleeEnemy::IsFacingTarget() const
@@ -159,6 +178,31 @@ void ACombatMeleeEnemy::UpdateFacingToTarget(float DeltaTime)
 	SetActorRotation(NewRotation);
 }
 
+void ACombatMeleeEnemy::UpdateChaseMovement(float DeltaTime)
+{
+	const FVector DirectionToTarget = GetPlanarDirectionToTarget();
+	
+	if (true == DirectionToTarget.IsNearlyZero())
+	{
+		return;
+	}
+	
+	const FVector CurrentLocation = GetActorLocation();
+	
+	const FVector MoveDelta = DirectionToTarget * ChaseMoveSpeed * DeltaTime;
+	
+	const FVector NewLocation = CurrentLocation + MoveDelta;
+	
+	FHitResult HitResult;
+	SetActorLocation(NewLocation, true, &HitResult);
+	
+	if (true == HitResult.bBlockingHit)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("%s chase movement blocked by %s"), *GetName(),
+			nullptr != HitResult.GetActor() ? *HitResult.GetActor()->GetName() : TEXT("Unknown"));
+	}
+}
+
 void ACombatMeleeEnemy::TryAttackTarget()
 {
 	if (nullptr == EnemyAttackComponent)
@@ -170,7 +214,37 @@ void ACombatMeleeEnemy::TryAttackTarget()
 	
 	if (true == bAttackStarted)
 	{
+		SetMeleeEnemyState(EMeleeEnemyState::Attacking);
 		UE_LOG(LogTemp, Log, TEXT("%s requested melee attack."), *GetName());
+	}
+}
+
+void ACombatMeleeEnemy::SetMeleeEnemyState(EMeleeEnemyState NewState)
+{
+	if (MeleeEnemyState == NewState)
+	{
+		return;
+	}
+	
+	MeleeEnemyState = NewState;
+	
+	UE_LOG(LogTemp, Log, TEXT("%s, MeleeState: %s"), *GetName(), *GetMeleeEnemyStateDebugString());
+}
+
+FString ACombatMeleeEnemy::GetMeleeEnemyStateDebugString() const
+{
+	switch (MeleeEnemyState)
+	{
+	case EMeleeEnemyState::Idle:
+		return TEXT("Idle");
+	case EMeleeEnemyState::Chasing:
+		return TEXT("Chasing");
+	case EMeleeEnemyState::Attacking:
+		return TEXT("Attacking");
+	case EMeleeEnemyState::Dead:
+		return TEXT("Dead");
+	default:
+		return TEXT("Unknown");
 	}
 }
 
@@ -188,4 +262,23 @@ void ACombatMeleeEnemy::DrawMeleeDebug() const
 	DrawDebugSphere(World, ActorLocation, DetectionRadius, 32, FColor::Silver, false, 0.0f);
 	
 	DrawDebugSphere(World, ActorLocation, AttackRange, 32, FColor::Orange, false, 0.0f);
+	
+	DrawDebugSphere(World, ActorLocation, StopDistance, 32, FColor::Green, false, 0.0f);
+	
+	if (true == HasValidTarget())
+	{
+		const FVector DirectionToTarget = GetPlanarDirectionToTarget();
+		
+		DrawDebugDirectionalArrow(
+			World,
+			ActorLocation + FVector(0.0f, 0.0f, 80.0f),
+			ActorLocation + FVector(0.0f, 0.0f, 80.0f) + DirectionToTarget * 200.0f,
+			50.0f,
+			FColor::Cyan,
+			false,
+			0.0f,
+			0,
+			3.0f
+		);
+	}
 }
