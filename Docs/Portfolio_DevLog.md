@@ -618,3 +618,34 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - Player HUD uses AddToViewport because it is screen-fixed UI.
 - Enemy HP Bar updates are event-driven, not Tick-driven.
 - Tick is used only for visible HP Bar world location updates.
+
+
+## Episode 23
+
+### Goal
+
+DummyEnemy에 직접 들어 있던 공통 적 기능을 `ACombatEnemyBase`로 이동해 적 확장을 위한 기반 구조를 만든다.
+
+### Completed
+
+- Created `ACombatEnemyBase`
+- Moved common enemy components to EnemyBase
+  - CapsuleComponent
+  - MeshComponent
+  - HealthComponent
+  - EnemyAttackComponent
+  - LockOnMarkerComponent
+  - EnemyHealthBarComponent
+- Moved health event binding to EnemyBase
+- Moved enemy HP Bar initialization to EnemyBase
+- Moved common death handling to EnemyBase
+- Changed `ACombatDummyEnemy` to inherit from `ACombatEnemyBase`
+- Kept DummyEnemy-specific death visual behavior in DummyEnemy
+- Verified player attack, enemy attack, lock-on marker, enemy HP Bar, and death flow after refactor
+
+### Technical Notes
+
+- EnemyBase owns common enemy components and event flow.
+- DummyEnemy now only contains test-specific behavior.
+- `ApplyDeathState()` is virtual so child enemy classes can extend death behavior.
+- This refactor reduces duplication before adding more enemy types.
