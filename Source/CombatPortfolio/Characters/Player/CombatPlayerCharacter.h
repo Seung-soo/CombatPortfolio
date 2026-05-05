@@ -13,6 +13,7 @@ class UCombatComponent;
 class UStaminaComponent;
 class UHealthComponent;
 class ULockOnComponent;
+class UPlayerHUDWidget;
 struct FInputActionValue;
 
 UENUM(BlueprintType)
@@ -95,6 +96,13 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> LockOnAction;
+	
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UPlayerHUDWidget> PlayerHUDWidgetClass;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPlayerHUDWidget> PlayerHUDWidget;
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
@@ -189,11 +197,17 @@ private:
 	
 	void UpdateCharacterTickEnabled();
 	
+	void CreatePlayerHUD();
+	void InitializePlayerHUD();
+	
 	UFUNCTION()
 	void HandleCombatActionStateChanged();
 	
 	UFUNCTION()
 	void HandleStaminaDepleted();
+	
+	UFUNCTION()
+	void HandleStaminaChanged(float CurrentStamina, float MaxStamina, float Delta);
 	
 	UFUNCTION()
 	void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta);

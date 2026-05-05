@@ -560,3 +560,33 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - LockOnComponent controls marker visibility through LockOnMarkerComponent.
 - Marker visibility is driven by LockOnTarget state changes.
 - WidgetComponent is used to display UMG UI in the world.
+
+
+
+## Episode 21
+
+### Goal
+
+디버그 텍스트로만 확인하던 플레이어 HP와 Stamina를 실제 HUD UI로 표시한다.
+
+### Completed
+
+- Created `UPlayerHUDWidget`
+- Created `WBP_PlayerHUD`
+- Added HP ProgressBar
+- Added Stamina ProgressBar
+- Added optional HP/Stamina TextBlocks
+- Added PlayerHUDWidgetClass to player character
+- Created HUD in BeginPlay
+- Added HUD to viewport
+- Initialized HUD with current Health and Stamina values
+- Connected HealthComponent `OnHealthChanged` to HUD
+- Connected StaminaComponent `OnStaminaChanged` to HUD
+- Updated HP and Stamina UI through event-based updates
+
+### Technical Notes
+
+- HUD update is event-driven, not Tick-driven.
+- ProgressBar values use Current / Max ratio.
+- Widget Blueprint uses `BindWidget` names to connect UI elements to C++.
+- HUD is currently created by PlayerCharacter and can later be moved to PlayerController or UI Manager.

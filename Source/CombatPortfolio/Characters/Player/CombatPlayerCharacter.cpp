@@ -13,6 +13,7 @@
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/LockOnComponent.h"
 #include "DrawDebugHelpers.h"
+#include "CombatPortfolio/UI/PlayerHUDWidget.h"
 
 // Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
@@ -88,6 +89,7 @@ void ACombatPlayerCharacter::BeginPlay()
 	if (nullptr != StaminaComponent)
 	{
 		StaminaComponent->OnStaminaDepleted.AddDynamic(this, &ACombatPlayerCharacter::HandleStaminaDepleted);
+		StaminaComponent->OnStaminaChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleStaminaChanged);
 	}
 	
 	if (nullptr != HealthComponent)
@@ -100,6 +102,9 @@ void ACombatPlayerCharacter::BeginPlay()
 	{
 		LockOnComponent->OnLockOnTargetChaged.AddDynamic(this, &ACombatPlayerCharacter::HandleLockOnTargetChanged);
 	}
+	
+	CreatePlayerHUD();
+	InitializePlayerHUD();
 	
 	ApplyRotationMode();
 	UpdateMovementState();
@@ -503,6 +508,52 @@ void ACombatPlayerCharacter::UpdateCharacterTickEnabled()
 	SetActorTickEnabled(bShouldTick);
 }
 
+void ACombatPlayerCharacter::CreatePlayerHUD()
+{
+	if (nullptr == PlayerHUDWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PlayerHUDWidgetClass is not assigned."));
+		return;
+	}
+	
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	
+	if (nullptr == PlayerController)
+	{
+		return;
+	}
+	
+	PlayerHUDWidget = CreateWidget<UPlayerHUDWidget>(PlayerController, PlayerHUDWidgetClass);
+	
+	if (nullptr == PlayerHUDWidget)
+	{
+		return;
+	}
+	
+	PlayerHUDWidget->AddToViewport();
+}
+
+void ACombatPlayerCharacter::InitializePlayerHUD()
+{
+	if (nullptr == PlayerHUDWidget)
+	{
+		return;
+	}
+	
+	if (nullptr == HealthComponent || nullptr == StaminaComponent)
+	{
+		return;
+	}
+	
+	PlayerHUDWidget->InitializeHUD(
+		HealthComponent->GetCurrentHealth(),
+		HealthComponent->GetMaxHealth(),
+		StaminaComponent->GetCurrentStamina(),
+		StaminaComponent->GetMaxStamina()
+	);
+	
+}
+
 FVector ACombatPlayerCharacter::GetDodgeDirection() const
 {
 	if (true == IsLockedOn())
@@ -624,8 +675,21 @@ void ACombatPlayerCharacter::HandleStaminaDepleted()
 	UpdateMovementSpeed();
 }
 
+void ACombatPlayerCharacter::HandleStaminaChanged(float CurrentStamina, float MaxStamina, float Delta)
+{
+	if (nullptr != PlayerHUDWidget)
+	{
+		PlayerHUDWidget->SetStamina(CurrentStamina, MaxStamina);
+	}
+}
+
 void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
 {
+	if (nullptr != PlayerHUDWidget)
+	{
+		PlayerHUDWidget->SetHealth(CurrentHealth, MaxHealth);
+	}
+	
 	UE_LOG(LogTemp, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 	
 	if (0.0f > Delta && nullptr != GEngine)
