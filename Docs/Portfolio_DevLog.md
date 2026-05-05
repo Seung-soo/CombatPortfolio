@@ -715,3 +715,33 @@ MeleeEnemy가 플레이어를 감지한 뒤 공격 거리까지 직접 이동하
 - `APawn` does not automatically apply movement input without a movement component, so direct movement is used for this learning step.
 - StopDistance and AttackRange are separated to prevent enemies from overlapping the player.
 - Future versions should use NavMesh, AIController, or CharacterMovement-based enemy movement.
+
+
+## Episode 26
+
+### Goal
+
+직접 위치 이동으로 구현했던 MeleeEnemy 추적을 AIController와 Navigation 기반 MoveToActor 추적으로 전환한다.
+
+### Completed
+
+- Added `ACombatEnemyAIController`
+- Added AIModule and NavigationSystem module dependencies
+- Changed EnemyBase from `APawn` to `ACharacter`
+- Configured EnemyBase AIControllerClass
+- Configured AutoPossessAI as PlacedInWorldOrSpawned
+- Replaced custom Capsule setup with Character capsule setup
+- Added CharacterMovement settings for enemy movement
+- Renamed enemy visual mesh to `BodyMeshComponent`
+- Replaced direct chase movement with `AAIController::MoveToActor`
+- Added `StopChaseMovement()`
+- Stopped AI movement on death
+- Added NavMeshBoundsVolume setup step
+- Verified Navigation-based chase, stop distance, attack, and death flow
+
+### Technical Notes
+
+- Direct movement was useful for understanding chase logic, but Navigation is better for path-based AI movement.
+- ACharacter provides CharacterMovement, which works better with AIController movement than a bare APawn.
+- MoveToActor uses StopDistance as AcceptanceRadius.
+- Behavior Tree is intentionally deferred until the lower-level AI movement flow is understood.

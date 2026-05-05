@@ -3,10 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
 #include "CombatEnemyBase.generated.h"
 
-class UCapsuleComponent;
 class UStaticMeshComponent;
 class UHealthComponent;
 class UEnemyAttackComponent;
@@ -14,7 +13,7 @@ class ULockOnMarkerComponent;
 class UEnemyHealthBarComponent;
 
 UCLASS()
-class COMBATPORTFOLIO_API ACombatEnemyBase : public APawn
+class COMBATPORTFOLIO_API ACombatEnemyBase : public ACharacter
 {
 	GENERATED_BODY()
 
@@ -37,10 +36,7 @@ protected:
 	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
-	TObjectPtr<UCapsuleComponent> CapsuleComponent;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
-	TObjectPtr<UStaticMeshComponent> MeshComponent;
+	TObjectPtr<UStaticMeshComponent> BodyMeshComponent;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UHealthComponent> HealthComponent;

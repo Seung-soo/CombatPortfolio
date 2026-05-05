@@ -2,38 +2,57 @@
 
 
 #include "CombatEnemyBase.h"
+
+#include "CombatPortfolio/AI/CombatEnemyAIController.h"
 #include "CombatPortfolio/Components/EnemyAttackComponent.h"
 #include "CombatPortfolio/Components/EnemyHealthBarComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/LockOnMarkerComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 ACombatEnemyBase::ACombatEnemyBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	
+	AIControllerClass = ACombatEnemyAIController::StaticClass();
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
-	CapsuleComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComponent"));
-	SetRootComponent(CapsuleComponent);
+
+	GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("Pawn"));
 	
-	CapsuleComponent->InitCapsuleSize(42.0f, 96.0f);
-	CapsuleComponent->SetCollisionProfileName(TEXT("Pawn"));
+	GetMesh()->SetVisibility(false);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	
-	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
-	MeshComponent->SetupAttachment(CapsuleComponent);
-	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	MeshComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
-	MeshComponent->SetRelativeScale3D(FVector(0.8f, 0.8f, 1.8f));
+	BodyMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMeshComponent"));
+	BodyMeshComponent->SetupAttachment(GetCapsuleComponent());
+	BodyMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	BodyMeshComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -40.0f));
+	BodyMeshComponent->SetRelativeScale3D(FVector(0.8f, 0.8f, 1.8f));
 	
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	
 	EnemyAttackComponent = CreateDefaultSubobject<UEnemyAttackComponent>(TEXT("EnemyAttackComponent"));
 	
 	LockOnMarkerComponent = CreateDefaultSubobject<ULockOnMarkerComponent>(TEXT("LockOnMarkerComponent"));
-	LockOnMarkerComponent->SetupAttachment(CapsuleComponent);
+	LockOnMarkerComponent->SetupAttachment(GetCapsuleComponent());
 	
 	EnemyHealthBarComponent = CreateDefaultSubobject<UEnemyHealthBarComponent>(TEXT("EnemyHealthBarComponent"));
-	EnemyHealthBarComponent->SetupAttachment(CapsuleComponent);
+	EnemyHealthBarComponent->SetupAttachment(GetCapsuleComponent());
+	
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr != MovementComponent)
+	{
+		MovementComponent->MaxWalkSpeed = 280.0f;
+		MovementComponent->bOrientRotationToMovement = false;
+		MovementComponent->bUseControllerDesiredRotation = false;
+		MovementComponent->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+	}
+	
+	bUseControllerRotationYaw = false;
 }
 
 // Called when the game starts or when spawned
@@ -72,9 +91,19 @@ void ACombatEnemyBase::HandleDeath()
 
 void ACombatEnemyBase::ApplyDeathState()
 {
-	if (nullptr != CapsuleComponent)
+	UCapsuleComponent* EnemyCapsuleComponent = GetCapsuleComponent();
+	
+	if (nullptr != EnemyCapsuleComponent)
 	{
-		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		EnemyCapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr != MovementComponent)
+	{
+		MovementComponent->StopMovementImmediately();
+		MovementComponent->DisableMovement();
 	}
 
 	if (nullptr != EnemyAttackComponent)
@@ -90,6 +119,13 @@ void ACombatEnemyBase::ApplyDeathState()
 	if (nullptr != EnemyHealthBarComponent)
 	{
 		EnemyHealthBarComponent->HideHealthBar();
+	}
+	
+	AAIController* EnemyAIController = Cast<AAIController>(GetController());
+	
+	if (nullptr != EnemyAIController)
+	{
+		EnemyAIController->StopMovement();
 	}
 }
 

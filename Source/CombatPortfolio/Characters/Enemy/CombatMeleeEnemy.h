@@ -42,7 +42,8 @@ private:
 	
 	FVector GetPlanarDirectionToTarget() const;
 	void UpdateFacingToTarget(float DeltaTime);
-	void UpdateChaseMovement(float DeltaTime);
+	void UpdateChaseMovement();
+	void StopChaseMovement();
 	void TryAttackTarget();
 	
 	void SetMeleeEnemyState(EMeleeEnemyState NewState);

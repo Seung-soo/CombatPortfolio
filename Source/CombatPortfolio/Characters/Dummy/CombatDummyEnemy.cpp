@@ -19,9 +19,9 @@ void ACombatDummyEnemy::ApplyDeathState()
 {
 	Super::ApplyDeathState();
 	
-	if (nullptr != MeshComponent)
+	if (nullptr != BodyMeshComponent)
 	{
-		MeshComponent->SetRelativeScale3D(FVector(0.8f, 0.8f, 0.35f));
-		MeshComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -85.0f));
+		BodyMeshComponent->SetRelativeScale3D(FVector(0.8f, 0.8f, 0.35f));
+		BodyMeshComponent->SetRelativeLocation(FVector(0.0f, 0.0f, -85.0f));
 	}
 }

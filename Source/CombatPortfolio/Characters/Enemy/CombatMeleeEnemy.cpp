@@ -3,8 +3,10 @@
 
 #include "CombatMeleeEnemy.h"
 
+#include "AIController.h"
 #include "CombatPortfolio/Components/EnemyAttackComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 ACombatMeleeEnemy::ACombatMeleeEnemy()
@@ -23,6 +25,13 @@ void ACombatMeleeEnemy::BeginPlay()
 	
 	CachePlayerPawn();
 	SetMeleeEnemyState(EMeleeEnemyState::Idle);
+	
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr != MovementComponent)
+	{
+		MovementComponent->MaxWalkSpeed = ChaseMoveSpeed;
+	}
 }
 
 void ACombatMeleeEnemy::Tick(float DeltaTime)
@@ -50,6 +59,7 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	if (false == IsTargetInsideDetectionRadius())
 	{
 		SetMeleeEnemyState(EMeleeEnemyState::Idle);
+		StopChaseMovement();
 		return;
 	}
 	
@@ -58,9 +68,11 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	if (false == IsTargetInsideStopDistance())
 	{
 		SetMeleeEnemyState(EMeleeEnemyState::Chasing);
-		UpdateChaseMovement(DeltaTime);
+		UpdateChaseMovement();
 		return;
 	}
+	
+	StopChaseMovement();
 	
 	if (false == IsTargetInsideAttackRange())
 	{
@@ -80,6 +92,8 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 void ACombatMeleeEnemy::ApplyDeathState()
 {
 	Super::ApplyDeathState();
+	
+	StopChaseMovement();
 	
 	SetMeleeEnemyState(EMeleeEnemyState::Dead);
 	SetActorTickEnabled(false);
@@ -178,29 +192,36 @@ void ACombatMeleeEnemy::UpdateFacingToTarget(float DeltaTime)
 	SetActorRotation(NewRotation);
 }
 
-void ACombatMeleeEnemy::UpdateChaseMovement(float DeltaTime)
+void ACombatMeleeEnemy::UpdateChaseMovement()
 {
-	const FVector DirectionToTarget = GetPlanarDirectionToTarget();
+	APawn* TargetPawn = TargetPlayerPawn.Get();
 	
-	if (true == DirectionToTarget.IsNearlyZero())
+	if (nullptr == TargetPawn)
 	{
 		return;
 	}
 	
-	const FVector CurrentLocation = GetActorLocation();
+	AAIController* EnemyAIController = Cast<AAIController>(GetController());
 	
-	const FVector MoveDelta = DirectionToTarget * ChaseMoveSpeed * DeltaTime;
-	
-	const FVector NewLocation = CurrentLocation + MoveDelta;
-	
-	FHitResult HitResult;
-	SetActorLocation(NewLocation, true, &HitResult);
-	
-	if (true == HitResult.bBlockingHit)
+	if (nullptr == EnemyAIController)
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("%s chase movement blocked by %s"), *GetName(),
-			nullptr != HitResult.GetActor() ? *HitResult.GetActor()->GetName() : TEXT("Unknown"));
+		UE_LOG(LogTemp, Warning, TEXT("%s has no AIController."), *GetName());
+		return;
 	}
+	
+	EnemyAIController->MoveToActor(TargetPawn, StopDistance, true, true, true, nullptr, true);
+}
+
+void ACombatMeleeEnemy::StopChaseMovement()
+{
+	AAIController* EnemyAIController = Cast<AAIController>(GetController());
+	
+	if (nullptr == EnemyAIController)
+	{
+		return;
+	}
+	
+	EnemyAIController->StopMovement();
 }
 
 void ACombatMeleeEnemy::TryAttackTarget()
