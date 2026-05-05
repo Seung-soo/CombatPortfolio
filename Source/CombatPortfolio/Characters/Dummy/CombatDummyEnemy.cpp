@@ -4,6 +4,7 @@
 #include "CombatDummyEnemy.h"
 
 #include "CombatPortfolio/Components/EnemyAttackComponent.h"
+#include "CombatPortfolio/Components/EnemyHealthBarComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/LockOnMarkerComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -31,6 +32,9 @@ ACombatDummyEnemy::ACombatDummyEnemy()
 	
 	LockOnMarkerComponent = CreateDefaultSubobject<ULockOnMarkerComponent>(TEXT("LockOnMarkerComponent"));
 	LockOnMarkerComponent->SetupAttachment(CapsuleComponent);
+	
+	EnemyHealthBarComponent = CreateDefaultSubobject<UEnemyHealthBarComponent>(TEXT("EnemyHealthBarComponent"));
+	EnemyHealthBarComponent->SetupAttachment(CapsuleComponent);
 }
 
 // Called when the game starts or when spawned
@@ -42,11 +46,21 @@ void ACombatDummyEnemy::BeginPlay()
 	{
 		HealthComponent->OnHealthChanged.AddDynamic(this, &ACombatDummyEnemy::HandleHealthChanged);
 		HealthComponent->OnDeath.AddDynamic(this, &ACombatDummyEnemy::HandleDeath);
+		
+		if (nullptr != EnemyHealthBarComponent)
+		{
+			EnemyHealthBarComponent->InitializeHealth(HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
+		}
 	}
 }
 
 void ACombatDummyEnemy::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
 {
+	if (nullptr != EnemyHealthBarComponent)
+	{
+		EnemyHealthBarComponent->SetHealth(CurrentHealth, MaxHealth);
+	}
+	
 	UE_LOG(LogTemp, Log, TEXT("DummyEnemy Health Changed: %.1f / %.1f, Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 }
 
@@ -78,5 +92,10 @@ void ACombatDummyEnemy::ApplyDeathState()
 	if (nullptr != LockOnMarkerComponent)
 	{
 		LockOnMarkerComponent->HideMarker();
+	}
+	
+	if (nullptr != EnemyHealthBarComponent)
+	{
+		EnemyHealthBarComponent->HideHealthBar();
 	}
 }

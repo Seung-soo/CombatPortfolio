@@ -590,3 +590,31 @@ HealthComponent의 체력 변경/사망 이벤트를 기반으로 DummyTarget의
 - ProgressBar values use Current / Max ratio.
 - Widget Blueprint uses `BindWidget` names to connect UI elements to C++.
 - HUD is currently created by PlayerCharacter and can later be moved to PlayerController or UI Manager.
+
+
+
+## Episode 22
+
+### Goal
+
+적 머리 위에 HP Bar를 표시하고, 적 HealthComponent의 체력 변경 이벤트와 연결한다.
+
+### Completed
+
+- Created `UEnemyHealthBarWidget`
+- Created `UEnemyHealthBarComponent`
+- Created `WBP_EnemyHealthBar`
+- Added EnemyHealthBarComponent to DummyEnemy
+- Initialized enemy HP Bar from HealthComponent
+- Updated enemy HP Bar through `OnHealthChanged`
+- Hid enemy HP Bar on death
+- Added optional `HideWhenFullHealth` setting
+- Used world-location based positioning for stable Screen Space WidgetComponent placement
+- Separated enemy HP Bar height from lock-on marker height
+
+### Technical Notes
+
+- Enemy HP Bar uses WidgetComponent because it follows an Actor in the world.
+- Player HUD uses AddToViewport because it is screen-fixed UI.
+- Enemy HP Bar updates are event-driven, not Tick-driven.
+- Tick is used only for visible HP Bar world location updates.
