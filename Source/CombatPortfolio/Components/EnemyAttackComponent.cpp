@@ -28,6 +28,13 @@ void UEnemyAttackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopAutoAttack();
 	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(AttackCooldownTimerHandle);
+	}
+	
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -66,6 +73,34 @@ void UEnemyAttackComponent::StopAutoAttack()
 void UEnemyAttackComponent::AttackOnce()
 {
 	PerformAttackTrace();
+}
+
+bool UEnemyAttackComponent::RequestAttack()
+{
+	if (false == CanRequestAttack())
+	{
+		return false;
+	}
+	
+	AttackOnce();
+	BeginAttackCooldown();
+	
+	return true;
+}
+
+bool UEnemyAttackComponent::CanRequestAttack() const
+{
+	return !bAttackOnCooldown;
+}
+
+bool UEnemyAttackComponent::IsAttackOnCooldown() const
+{
+	return bAttackOnCooldown;
+}
+
+void UEnemyAttackComponent::SetStartAttackOnBeginPlay(bool bNewStartAttackOnBeginPlay)
+{
+	bStartAttackOnBeginPlay = bNewStartAttackOnBeginPlay;
 }
 
 void UEnemyAttackComponent::PerformAttackTrace()
@@ -228,4 +263,36 @@ FVector UEnemyAttackComponent::GetAttackTraceEndLocation() const
 	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
 	
 	return OwnerLocation + ForwardVector * AttackTraceForwardOffset + FVector(0.0f, 0.0f, AttackTraceHalfHeight);
+}
+
+void UEnemyAttackComponent::BeginAttackCooldown()
+{
+	if (0.0f >= AttackCooldown)
+	{
+		return;
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return;
+	}
+	
+	bAttackOnCooldown = true;
+	
+	World->GetTimerManager().ClearTimer(AttackCooldownTimerHandle);
+	
+	World->GetTimerManager().SetTimer(
+		AttackCooldownTimerHandle,
+		this,
+		&UEnemyAttackComponent::EndAttackCooldown,
+		AttackCooldown,
+		false
+	);
+}
+
+void UEnemyAttackComponent::EndAttackCooldown()
+{
+	bAttackOnCooldown = false;
 }

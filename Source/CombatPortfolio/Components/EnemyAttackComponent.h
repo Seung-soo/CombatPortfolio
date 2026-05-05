@@ -29,6 +29,11 @@ public:
 	void StopAutoAttack();
 	void AttackOnce();
 	
+	bool RequestAttack();
+	bool CanRequestAttack() const;
+	bool IsAttackOnCooldown() const;
+	void SetStartAttackOnBeginPlay(bool bNewStartAttackOnBeginPlay);
+	
 private:
 	void PerformAttackTrace();
 	void ApplyDamageToActor(AActor* TargetActor);
@@ -37,6 +42,9 @@ private:
 	
 	FVector GetAttackTraceStartLocation() const;
 	FVector GetAttackTraceEndLocation() const;
+	
+	void BeginAttackCooldown();
+	void EndAttackCooldown();
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true"))
@@ -47,6 +55,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float AttackDamage = 25.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float AttackCooldown = 1.5f;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack|Trace", meta = (AllowPrivateAccess = "true", ClampMin = "1.0"))
 	float AttackTraceRadius = 90.0f;
@@ -60,6 +71,10 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack|Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDrawAttackDebug = true;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true"))
+	bool bAttackOnCooldown = false;
+	
 private:
 	FTimerHandle AutoAttackTimerHandle;
+	FTimerHandle AttackCooldownTimerHandle;
 };
