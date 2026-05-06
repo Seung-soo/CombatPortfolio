@@ -34,6 +34,7 @@ protected:
 private:
 	void CachePlayerPawn();
 	bool HasValidTarget() const;
+	bool IsTargetDead() const;
 	float GetDistanceToTarget() const;
 	bool IsTargetInsideDetectionRadius() const;
 	bool IsTargetInsideAttackRange() const;
@@ -61,6 +62,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float StopDistance = 180.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Navigation", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float NavigationAcceptanceRadius = 5.0f;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float ChaseMoveSpeed = 280.0f;

@@ -745,3 +745,35 @@ MeleeEnemy가 플레이어를 감지한 뒤 공격 거리까지 직접 이동하
 - ACharacter provides CharacterMovement, which works better with AIController movement than a bare APawn.
 - MoveToActor uses StopDistance as AcceptanceRadius.
 - Behavior Tree is intentionally deferred until the lower-level AI movement flow is understood.
+
+
+## Episode 27
+
+### Goal
+
+적 공격을 즉시 Trace 방식에서 공격 몽타주와 Hit Window 기반 판정 구조로 확장한다.
+
+### Completed
+
+- Added montage-driven enemy attack flow
+- Added `AttackMontage` to `UEnemyAttackComponent`
+- Added `bAttacking`
+- Added `bHitWindowOpen`
+- Added enemy attack hit window open/close functions
+- Enabled EnemyAttackComponent Tick only during hit window
+- Added repeated trace during hit window
+- Added hit actor tracking per attack
+- Prevented multiple hits on the same actor in a single attack
+- Added fallback instant attack when no montage is assigned
+- Added `UAnimNotifyState_EnemyAttackHitWindow`
+- Connected AnimNotifyState begin/end to enemy hit window
+- Stopped melee enemy movement while attacking
+- Prepared MeleeEnemy to use skeletal mesh montage attacks
+
+### Technical Notes
+
+- Attacking represents the whole attack action.
+- HitWindow represents the active damage window.
+- Enemy attack trace is only performed while the hit window is open.
+- Hit actors are cached per attack to prevent duplicate damage.
+- Montage support is optional so combat can still be tested without animation assets.

@@ -5,11 +5,14 @@
 
 #include "CombatComponent.h"
 #include "HealthComponent.h"
+#include "Animation/AnimMontage.h"
+#include "GameFramework/Character.h"
 
 // Sets default values for this component's properties
 UEnemyAttackComponent::UEnemyAttackComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
 
@@ -33,9 +36,24 @@ void UEnemyAttackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (nullptr != World)
 	{
 		World->GetTimerManager().ClearTimer(AttackCooldownTimerHandle);
+		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
+
 	}
 	
 	Super::EndPlay(EndPlayReason);
+}
+
+void UEnemyAttackComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	if (false == bHitWindowOpen)
+	{
+		return;
+	}
+	
+	PerformAttackTrace();
 }
 
 void UEnemyAttackComponent::StartAutoAttack()
@@ -72,7 +90,13 @@ void UEnemyAttackComponent::StopAutoAttack()
 
 void UEnemyAttackComponent::AttackOnce()
 {
+	ResetHitActors();
+	
+	OpenAttackHitWindow();
 	PerformAttackTrace();
+	CloseAttackHitWindow();
+	
+	EndAttack();
 }
 
 bool UEnemyAttackComponent::RequestAttack()
@@ -80,6 +104,17 @@ bool UEnemyAttackComponent::RequestAttack()
 	if (false == CanRequestAttack())
 	{
 		return false;
+	}
+	
+	ResetHitActors();
+	
+	const bool bMontageStarted = TryPlayAttackMontage();
+	
+	if (true == bMontageStarted)
+	{
+		bAttacking = true;
+		BeginAttackCooldown();
+		return true;
 	}
 	
 	AttackOnce();
@@ -90,7 +125,7 @@ bool UEnemyAttackComponent::RequestAttack()
 
 bool UEnemyAttackComponent::CanRequestAttack() const
 {
-	return !bAttackOnCooldown;
+	return false == bAttackOnCooldown && false == bAttacking;
 }
 
 bool UEnemyAttackComponent::IsAttackOnCooldown() const
@@ -98,9 +133,103 @@ bool UEnemyAttackComponent::IsAttackOnCooldown() const
 	return bAttackOnCooldown;
 }
 
+bool UEnemyAttackComponent::IsAttacking() const
+{
+	return bAttacking;
+}
+
+bool UEnemyAttackComponent::IsHitWindowOpen() const
+{
+	return bHitWindowOpen;
+}
+
 void UEnemyAttackComponent::SetStartAttackOnBeginPlay(bool bNewStartAttackOnBeginPlay)
 {
 	bStartAttackOnBeginPlay = bNewStartAttackOnBeginPlay;
+}
+
+void UEnemyAttackComponent::OpenAttackHitWindow()
+{
+	if (false == bAttacking)
+	{
+		bAttacking = true;
+	}
+	
+	bHitWindowOpen = true;
+	SetComponentTickByHitWindow();
+	
+	UE_LOG(LogTemp, Log, TEXT("Enemy Attack hit window opened."));
+}
+
+void UEnemyAttackComponent::CloseAttackHitWindow()
+{
+	bHitWindowOpen = false;
+	SetComponentTickByHitWindow();
+	
+	UE_LOG(LogTemp, Log, TEXT("Enemy attack hit window closed."));
+}
+
+void UEnemyAttackComponent::EndAttack()
+{
+	if (false == bAttacking && false == bHitWindowOpen)
+	{
+		return;
+	}
+	
+	CloseAttackHitWindow();
+	
+	bAttacking = false;
+	ResetHitActors();
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("Enemy attack ended."));
+}
+
+bool UEnemyAttackComponent::TryPlayAttackMontage()
+{
+	if (nullptr == AttackMontage)
+	{
+		return false;
+	}
+	
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	
+	if (nullptr == OwnerCharacter)
+	{
+		return false;
+	}
+	
+	const float MontageLength = OwnerCharacter->PlayAnimMontage(AttackMontage, AttackMontagePlayRate);
+	
+	if (0.0f >= MontageLength)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play enemy attack montage."), *OwnerCharacter->GetName());
+		return false;
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
+		World->GetTimerManager().SetTimer(
+			AttackEndTimerHandle,
+			this,
+			&UEnemyAttackComponent::EndAttack,
+			MontageLength,
+			false
+		);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("%s played enemy attack montage. Length: %.2f"), *OwnerCharacter->GetName(), MontageLength);
+	
+	return true;
 }
 
 void UEnemyAttackComponent::PerformAttackTrace()
@@ -152,13 +281,12 @@ void UEnemyAttackComponent::PerformAttackTrace()
 			FQuat::Identity,
 			DebugColor,
 			false,
-			0.25f
+			0.08f
 		);
 	}
 	
 	if (false == bHit)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Enemy attack missed."));
 		return;
 	}
 	
@@ -176,7 +304,29 @@ void UEnemyAttackComponent::PerformAttackTrace()
 			continue;
 		}
 		
+		if (true == HasAlreadyHitActor(HitActor))
+		{
+			continue;
+		}
+		
+		const bool bDamageBlocked = IsDamageBlockedByInvincibility(HitActor);
+		
+		if (true == bDamageBlocked)
+		{
+			AddHitActor(HitActor);
+			
+			UE_LOG(LogTemp, Log, TEXT("Enemy damage blocked by invincibility: %s"), *HitActor->GetName());
+			
+			if (nullptr != GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Enemy Attack Blocked by IFrame"));
+			}
+			
+			continue;
+		}
+		
 		ApplyDamageToActor(HitActor);
+		AddHitActor(HitActor);
 	}
 }
 
@@ -189,13 +339,6 @@ void UEnemyAttackComponent::ApplyDamageToActor(AActor* TargetActor)
 	
 	if (true == IsDamageBlockedByInvincibility(TargetActor))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Enemy damage blocked by invincibility: %s"), *TargetActor->GetName());
-		
-		if (nullptr != GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Enemy Attack Blocked by IFrame"));
-		}
-		
 		return;
 	}
 	
@@ -204,6 +347,11 @@ void UEnemyAttackComponent::ApplyDamageToActor(AActor* TargetActor)
 	if (nullptr == HealthComponent)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Enemy hit actor has no HealthComponent: %s"), *TargetActor->GetName());
+		return;
+	}
+	
+	if (true == HealthComponent->IsDead())
+	{
 		return;
 	}
 	
@@ -233,6 +381,39 @@ bool UEnemyAttackComponent::IsDamageBlockedByInvincibility(AActor* TargetActor) 
 	}
 	
 	return TargetCombatComponent->IsInvincible();
+}
+
+bool UEnemyAttackComponent::HasAlreadyHitActor(const AActor* TargetActor) const
+{
+	if (nullptr == TargetActor)
+	{
+		return false;
+	}
+	
+	for (const TWeakObjectPtr<AActor>& HitActor : HitActorsThisAttack)
+	{
+		if (HitActor.Get() == TargetActor)
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+void UEnemyAttackComponent::AddHitActor(AActor* TargetActor)
+{
+	if (nullptr == TargetActor)
+	{
+		return;
+	}
+	
+	HitActorsThisAttack.Add(TargetActor);
+}
+
+void UEnemyAttackComponent::ResetHitActors()
+{
+	HitActorsThisAttack.Reset();
 }
 
 FVector UEnemyAttackComponent::GetAttackTraceStartLocation() const
@@ -295,4 +476,9 @@ void UEnemyAttackComponent::BeginAttackCooldown()
 void UEnemyAttackComponent::EndAttackCooldown()
 {
 	bAttackOnCooldown = false;
+}
+
+void UEnemyAttackComponent::SetComponentTickByHitWindow()
+{
+	SetComponentTickEnabled(bHitWindowOpen);
 }

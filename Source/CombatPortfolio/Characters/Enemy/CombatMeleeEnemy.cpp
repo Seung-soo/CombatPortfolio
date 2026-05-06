@@ -17,6 +17,11 @@ ACombatMeleeEnemy::ACombatMeleeEnemy()
 	{
 		EnemyAttackComponent->SetStartAttackOnBeginPlay(false);
 	}
+		
+	if (nullptr != BodyMeshComponent)
+	{
+		BodyMeshComponent->SetVisibility(false);
+	}
 }
 
 void ACombatMeleeEnemy::BeginPlay()
@@ -41,6 +46,7 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
 	{
 		SetMeleeEnemyState(EMeleeEnemyState::Dead);
+		StopChaseMovement();
 		return;
 	}
 	
@@ -48,6 +54,14 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	{
 		CachePlayerPawn();
 		SetMeleeEnemyState(EMeleeEnemyState::Idle);
+		StopChaseMovement();
+		return;
+	}
+	
+	if (true == IsTargetDead())
+	{
+		SetMeleeEnemyState(EMeleeEnemyState::Idle);
+		StopChaseMovement();
 		return;
 	}
 	
@@ -64,6 +78,13 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	}
 	
 	UpdateFacingToTarget(DeltaTime);
+	
+	if (nullptr != EnemyAttackComponent && true == EnemyAttackComponent->IsAttacking())
+	{
+		SetMeleeEnemyState(EMeleeEnemyState::Attacking);
+		StopChaseMovement();
+		return;
+	}
 	
 	if (false == IsTargetInsideStopDistance())
 	{
@@ -110,6 +131,26 @@ bool ACombatMeleeEnemy::HasValidTarget() const
 	return TargetPlayerPawn.IsValid();
 }
 
+bool ACombatMeleeEnemy::IsTargetDead() const
+{
+	if (const APawn* TargetPawn = TargetPlayerPawn.Get())
+	{
+		if (nullptr == TargetPawn)
+		{
+			return true;
+		}
+	}
+	
+	UHealthComponent* TargetHealthComponent = TargetPlayerPawn->FindComponentByClass<UHealthComponent>();
+	
+	if (nullptr == TargetHealthComponent)
+	{
+		return false;
+	}
+	
+	return TargetHealthComponent->IsDead();
+}
+
 float ACombatMeleeEnemy::GetDistanceToTarget() const
 {
 	const APawn* TargetPawn = TargetPlayerPawn.Get();
@@ -119,7 +160,7 @@ float ACombatMeleeEnemy::GetDistanceToTarget() const
 		return TNumericLimits<float>::Max();
 	}
 	
-	return FVector::Dist(GetActorLocation(), TargetPawn->GetActorLocation());
+	return FVector::Dist2D(GetActorLocation(), TargetPawn->GetActorLocation());
 }
 
 bool ACombatMeleeEnemy::IsTargetInsideDetectionRadius() const
@@ -209,7 +250,7 @@ void ACombatMeleeEnemy::UpdateChaseMovement()
 		return;
 	}
 	
-	EnemyAIController->MoveToActor(TargetPawn, StopDistance, true, true, true, nullptr, true);
+	EnemyAIController->MoveToActor(TargetPawn, NavigationAcceptanceRadius, false, true, true, nullptr, true);
 }
 
 void ACombatMeleeEnemy::StopChaseMovement()
