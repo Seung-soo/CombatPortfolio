@@ -183,6 +183,11 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 
 void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 {
+	if (nullptr != CombatComponent && true == CombatComponent->IsHitReacting())
+	{
+		return;
+	}
+	
 	const FVector2D MovementVector = Value.Get<FVector2D>();
 	
 	if (false == MovementVector.IsNearlyZero())
@@ -236,7 +241,12 @@ void ACombatPlayerCharacter::StopWalk()
 
 void ACombatPlayerCharacter::StartSprint()
 {
-	if (true == IsCombatAttacking() || IsCombatDodging())
+	if (nullptr != CombatComponent && true == CombatComponent->IsHitReacting())
+	{
+		return;
+	}
+	
+	if (true == IsCombatAttacking() || true == IsCombatDodging())
 	{
 		return;
 	}
@@ -692,6 +702,21 @@ void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxH
 	
 	UE_LOG(LogTemp, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 	
+	if (0.0f > Delta && 0.0f < CurrentHealth)
+	{
+		if (nullptr != CombatComponent)
+		{
+			const bool bHitReactionStarted = CombatComponent->RequestHitReaction();
+			
+			if (true == bHitReactionStarted)
+			{
+				bWantsToSprint = false;
+				UpdateMovementState();
+				UpdateMovementSpeed();
+			}
+		}
+	}
+	
 	if (0.0f > Delta && nullptr != GEngine)
 	{
 		const FString DebugText = FString::Printf(TEXT("Player Hit! HP: %.1f / %.1f"), CurrentHealth, MaxHealth);
@@ -770,6 +795,8 @@ FString ACombatPlayerCharacter::GetCombatStateDebugString() const
 		return TEXT("Attacking");
 	case ECombatActionState::Dodging:
 		return TEXT("Dodging");
+	case ECombatActionState::HitReaction:
+		return TEXT("HitReaction");
 	default:
 		return TEXT("Unknown");
 	}

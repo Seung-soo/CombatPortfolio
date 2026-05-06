@@ -64,6 +64,19 @@ void UCombatComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
 	PerformAttackTrace();
 }
 
+void UCombatComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UWorld* World = GetWorld();
+
+	if (World != nullptr)
+	{
+		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
+		World->GetTimerManager().ClearTimer(HitReactionInvincibleTimerHandle);
+	}
+	
+	Super::EndPlay(EndPlayReason);
+}
+
 bool UCombatComponent::RequestAttack()
 {
 	if (CombatActionState == ECombatActionState::Idle)
@@ -189,6 +202,52 @@ void UCombatComponent::EndComboInputWindow()
 {
 	SetComboInputWindowOpen(false);
 	TryCommitBufferedCombo();
+}
+
+bool UCombatComponent::RequestHitReaction()
+{
+	if (ECombatActionState::HitReaction == CombatActionState)
+	{
+		return false;
+	}
+	
+	if (ECombatActionState::Dodging == CombatActionState)
+	{
+		return false;
+	}
+	
+	CancelCurrentActionForHitReaction();
+	
+	SetCombatActionState(ECombatActionState::HitReaction);
+	
+	StartHitReactionInvincibility();
+	
+	const bool bPlayedMontage = TryPlayHitReactionMontage();
+	
+	float ReactionDuration = HitReactionDuration;
+	
+	if (true == bPlayedMontage && nullptr != HitReactionMontage)
+	{
+		const float MontageDuration = HitReactionMontage->GetPlayLength() / FMath::Max(HitReactionMontagePlayRate, KINDA_SMALL_NUMBER);
+		ReactionDuration = FMath::Max(ReactionDuration, MontageDuration);
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return true;
+	}
+	
+	World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
+	World->GetTimerManager().SetTimer(HitReactionTimerHandle, this, &UCombatComponent::EndHitReaction, ReactionDuration, false);
+	
+	return true;
+}
+
+bool UCombatComponent::IsHitReacting() const
+{
+	return ECombatActionState::HitReaction == CombatActionState;
 }
 
 ECombatActionState UCombatComponent::GetCombatActionState() const
@@ -833,4 +892,90 @@ bool UCombatComponent::IsDamageBlockedByInvincibility(const AActor* TargetActor)
 	}
 	
 	return TargetCombatComponent->IsInvincible();
+}
+
+void UCombatComponent::EndHitReaction()
+{
+	if (ECombatActionState::HitReaction != CombatActionState)
+	{
+		return;
+	}
+	
+	SetCombatActionState(ECombatActionState::Idle);
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("Player hit reaction ended."));
+}
+
+bool UCombatComponent::TryPlayHitReactionMontage()
+{
+	if (nullptr == HitReactionMontage)
+	{
+		return false;
+	}
+	
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	
+	if (nullptr == OwnerCharacter)
+	{
+		return false;
+	}
+	
+	const float MontageLength = OwnerCharacter->PlayAnimMontage(HitReactionMontage, HitReactionMontagePlayRate);
+	
+	if (0.0f >= MontageLength)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play player hit reaction montage."), *OwnerCharacter->GetName());
+		return false;
+	}
+	
+	return true;
+}
+
+void UCombatComponent::StartHitReactionInvincibility()
+{
+	if (0.0f >= HitReactionInvincibleDuration)
+	{
+		bInvincible = false;
+		return;
+	}
+	
+	bInvincible = true;
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return;
+	}
+	
+	World->GetTimerManager().ClearTimer(HitReactionInvincibleTimerHandle);
+	
+	World->GetTimerManager().SetTimer(
+		HitReactionInvincibleTimerHandle,
+		this,
+		&UCombatComponent::EndHitReactionInvincibility,
+		HitReactionInvincibleDuration,
+		false
+	);
+}
+
+void UCombatComponent::EndHitReactionInvincibility()
+{
+	bInvincible = false;
+}
+
+void UCombatComponent::CancelCurrentActionForHitReaction()
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (nullptr != OwnerCharacter)
+	{
+		OwnerCharacter->StopAnimMontage();
+	}
 }

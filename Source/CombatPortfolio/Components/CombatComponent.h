@@ -18,6 +18,7 @@ enum class ECombatActionState : uint8
 	Idle UMETA(DisplayName = "Idle"),
 	Attacking UMETA(DisplayName = "Attacking"),
 	Dodging UMETA(DisplayName = "Dodging"),
+	HitReaction UMETA(DisplayName = "HitReaction")
 };
 
 USTRUCT(BlueprintType)
@@ -59,6 +60,7 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:	
 	bool RequestAttack();
@@ -83,6 +85,9 @@ public:
 	
 	void BeginComboInputWindow();
 	void EndComboInputWindow();
+	
+	bool RequestHitReaction();
+	bool IsHitReacting() const;
 	
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
@@ -142,6 +147,11 @@ private:
 	
 	bool IsDamageBlockedByInvincibility(const AActor* TargetActor) const;
 
+	void EndHitReaction();
+	bool TryPlayHitReactionMontage();
+	void StartHitReactionInvincibility();
+	void EndHitReactionInvincibility();
+	void CancelCurrentActionForHitReaction();
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
@@ -189,9 +199,24 @@ private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
 	bool bComboInputBuffered = false;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", Clamp = "0.0"))
+	float HitReactionDuration = 0.45f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float HitReactionInvincibleDuration = 0.35f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> HitReactionMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
+	float HitReactionMontagePlayRate = 1.0f;
+	
 private:
 	FTimerHandle DodgeFallbackTimerHandle;
 	FTimerHandle InvincibilityTimerHandle;
+	
+	FTimerHandle HitReactionTimerHandle;
+	FTimerHandle HitReactionInvincibleTimerHandle;
 	
 	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;
 };
