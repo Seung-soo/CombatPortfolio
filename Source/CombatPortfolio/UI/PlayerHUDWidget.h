@@ -23,6 +23,9 @@ public:
 	void SetHealth(float CurrentHealth, float MaxHealth);
 	void SetStamina(float CurrentStamina, float MaxStamina);
 	
+	void ShowDeathMessage();
+	void HideDeathMessage();
+	
 private:
 	float CalculateRatio(float CurrentValue, float MaxValue) const;
 	
@@ -38,4 +41,7 @@ private:
 	
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StaminaText;
+	
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> DeathText;
 };

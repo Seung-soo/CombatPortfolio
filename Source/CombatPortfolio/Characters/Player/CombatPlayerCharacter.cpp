@@ -183,9 +183,12 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 
 void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 {
-	if (nullptr != CombatComponent && true == CombatComponent->IsHitReacting())
+	if (nullptr != CombatComponent)
 	{
-		return;
+		if (true == CombatComponent->IsDead() || true == CombatComponent->IsHitReacting())
+		{
+			return;
+		}
 	}
 	
 	const FVector2D MovementVector = Value.Get<FVector2D>();
@@ -241,9 +244,12 @@ void ACombatPlayerCharacter::StopWalk()
 
 void ACombatPlayerCharacter::StartSprint()
 {
-	if (nullptr != CombatComponent && true == CombatComponent->IsHitReacting())
+	if (CombatComponent != nullptr)
 	{
-		return;
+		if (true == CombatComponent->IsDead() || true == CombatComponent->IsHitReacting())
+		{
+			return;
+		}
 	}
 	
 	if (true == IsCombatAttacking() || true == IsCombatDodging())
@@ -395,6 +401,11 @@ void ACombatPlayerCharacter::Attack()
 		return;
 	}
 	
+	if (true == CombatComponent->IsDead())
+	{
+		return;
+	}
+	
 	const bool bAttackStarted = CombatComponent->RequestAttack();
 	
 	if (false == bAttackStarted)
@@ -411,6 +422,11 @@ void ACombatPlayerCharacter::Attack()
 void ACombatPlayerCharacter::Dodge()
 {
 	if (nullptr == CombatComponent)
+	{
+		return;
+	}
+	
+	if (true == CombatComponent->IsDead())
 	{
 		return;
 	}
@@ -729,18 +745,36 @@ void ACombatPlayerCharacter::HandleDeath()
 {
 	UE_LOG(LogTemp, Warning, TEXT("Player died"));
 	
-	if (nullptr != GEngine)
+	bWantsToSprint = false;
+	
+	StopMove();
+	
+	if (nullptr != CombatComponent)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Player Dead"));
+		CombatComponent->RequestDeath();
 	}
 	
-	DisableInput(nullptr);
+	if (nullptr != LockOnComponent)
+	{
+		LockOnComponent->ClearLockOnTarget();
+	}
+	
+	//DisableInput(nullptr);
 	
 	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
 	
 	if (nullptr != MovementComponent)
 	{
+		MovementComponent->StopMovementImmediately();
 		MovementComponent->DisableMovement();
+	}
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+	
+	if (nullptr != PlayerHUDWidget)
+	{
+		PlayerHUDWidget->ShowDeathMessage();
 	}
 }
 
@@ -796,7 +830,9 @@ FString ACombatPlayerCharacter::GetCombatStateDebugString() const
 	case ECombatActionState::Dodging:
 		return TEXT("Dodging");
 	case ECombatActionState::HitReaction:
-		return TEXT("HitReaction");
+		return TEXT("HitReacting");
+	case ECombatActionState::Dead:
+		return TEXT("Dead");
 	default:
 		return TEXT("Unknown");
 	}

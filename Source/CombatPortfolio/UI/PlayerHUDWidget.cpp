@@ -9,6 +9,7 @@ void UPlayerHUDWidget::InitializeHUD(float CurrentHealth, float MaxHealth, float
 {
 	SetHealth(CurrentHealth, MaxHealth);
 	SetStamina(CurrentStamina, MaxStamina);
+	HideDeathMessage();
 }
 
 void UPlayerHUDWidget::SetHealth(float CurrentHealth, float MaxHealth)
@@ -42,6 +43,22 @@ void UPlayerHUDWidget::SetStamina(float CurrentStamina, float MaxStamina)
 		const FString StaminaString = FString::Printf(TEXT("ST %.0f / %.0f"), CurrentStamina, MaxStamina);
 		
 		StaminaText->SetText(FText::FromString(StaminaString));
+	}
+}
+
+void UPlayerHUDWidget::ShowDeathMessage()
+{
+	if (nullptr != DeathText)
+	{
+		DeathText->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+}
+
+void UPlayerHUDWidget::HideDeathMessage()
+{
+	if (nullptr != DeathText)
+	{
+		DeathText->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
 

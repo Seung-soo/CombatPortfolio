@@ -808,3 +808,69 @@ MeleeEnemy가 플레이어를 감지한 뒤 공격 거리까지 직접 이동하
 - Death has higher priority than hit reaction.
 - Hit reaction has higher priority than attack and chase.
 - Hit reaction montage is optional so the system works before enemy animation assets are ready.
+
+
+## Episode 29
+
+### Goal
+
+플레이어가 적 공격에 맞았을 때 HitReaction 상태로 진입하고, 짧은 시간 동안 행동 제한과 피격 무적이 적용되도록 구현한다.
+
+### Completed
+
+- Added `HitReacting` to player combat action state
+- Added player hit reaction duration
+- Added player hit reaction invincibility duration
+- Added optional player hit reaction montage
+- Added `RequestHitReaction()` to CombatComponent
+- Added `EndHitReaction()`
+- Added hit reaction invincibility start/end
+- Canceled current combat action when hit reaction starts
+- Stopped player movement input during hit reaction
+- Prevented attack and dodge during hit reaction
+- Started hit reaction from player HealthComponent damage event
+- Prevented hit reaction from starting when player is dead
+- Added timer-based hit reaction recovery
+- Preserved optional montage fallback behavior
+
+### Technical Notes
+
+- Hit reaction is triggered by HealthComponent `OnHealthChanged` with negative Delta.
+- CombatComponent owns player combat action state.
+- Character blocks movement input based on CombatComponent hit reaction state.
+- Hit reaction invincibility currently reuses the existing invincibility flag.
+- Future refactor can separate dodge invincibility and hit invincibility.
+
+
+## Episode 30
+
+### Goal
+
+플레이어 HP가 0이 되었을 때 Dead 상태로 전환하고, Death Montage와 입력 제한, HUD 사망 피드백을 연결한다.
+
+### Completed
+
+- Added `Dead` to player combat action state
+- Added `DeathMontage` to CombatComponent
+- Added `RequestDeath()`
+- Added `IsDead()`
+- Added `IsDeathMontageFinished()`
+- Stopped current montage when death starts
+- Played player death montage
+- Bound montage end delegate for death montage completion
+- Prevented hit reaction from starting while dead
+- Blocked movement during death
+- Blocked combat actions during death
+- Stopped sprint on death
+- Stopped CharacterMovement on death
+- Cleared lock-on target on death
+- Added optional `DeathText` to player HUD
+- Showed death message on player death
+
+### Technical Notes
+
+- Death is a final combat state, not a timed state.
+- Death Montage is required for the intended flow.
+- Death completion is detected through Montage End Delegate, not a timer.
+- Character movement is disabled on death.
+- Death state has higher priority than hit reaction, dodge, attack, and idle.

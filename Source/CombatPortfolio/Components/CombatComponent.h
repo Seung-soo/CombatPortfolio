@@ -18,7 +18,8 @@ enum class ECombatActionState : uint8
 	Idle UMETA(DisplayName = "Idle"),
 	Attacking UMETA(DisplayName = "Attacking"),
 	Dodging UMETA(DisplayName = "Dodging"),
-	HitReaction UMETA(DisplayName = "HitReaction")
+	HitReaction UMETA(DisplayName = "HitReaction"),
+	Dead UMETA(DisplayName = "Dead"),
 };
 
 USTRUCT(BlueprintType)
@@ -65,12 +66,14 @@ protected:
 public:	
 	bool RequestAttack();
 	bool RequestDodge(const FVector& DodgeDirection);
+	bool RequestDeath();
 	
 	bool CanStartAttack() const;
 	bool CanStartDodge() const;
 	
 	bool IsAttacking() const;
 	bool IsDodging() const;
+	bool IsDead() const;
 	bool IsInvincible() const;
 	bool IsHitWindowOpen() const;
 	bool IsComboInputWindowOpen() const;
@@ -88,6 +91,8 @@ public:
 	
 	bool RequestHitReaction();
 	bool IsHitReacting() const;
+	
+	bool IsDeathMontageFinished() const;
 	
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
@@ -153,6 +158,10 @@ private:
 	void EndHitReactionInvincibility();
 	void CancelCurrentActionForHitReaction();
 	
+	bool TryPlayDeathMontage();
+	void HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void CancelCurrentActionForDeath();
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> AttackMontage;
@@ -210,6 +219,15 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
 	float HitReactionMontagePlayRate = 1.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> DeathMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
+	float DeathMontagePlayRate = 1.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true"))
+	bool bDeathMontageFinished = false;
 	
 private:
 	FTimerHandle DodgeFallbackTimerHandle;

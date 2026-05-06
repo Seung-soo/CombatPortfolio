@@ -102,6 +102,30 @@ bool UCombatComponent::RequestDodge(const FVector& DodgeDirection)
 	return StartDodge(DodgeDirection);
 }
 
+bool UCombatComponent::RequestDeath()
+{
+	if (ECombatActionState::Dead == CombatActionState)
+	{
+		return false;
+	}
+	
+	CancelCurrentActionForDeath();
+	
+	bDeathMontageFinished = false;
+	
+	SetCombatActionState(ECombatActionState::Dead);
+	
+	bInvincible = false;
+	
+	const bool bDeathMontageStarted = TryPlayDeathMontage();
+	if (false == bDeathMontageStarted)
+	{
+		UE_LOG(LogTemp, Error, TEXT("DeathMontage is not assigned or failed to play. Assign AM_Player_Death to CombatComponent"));
+	}
+	
+	return true;
+}
+
 bool UCombatComponent::CanStartDodge() const
 {
 	return ECombatActionState::Idle == CombatActionState;
@@ -110,6 +134,11 @@ bool UCombatComponent::CanStartDodge() const
 bool UCombatComponent::IsDodging() const
 {
 	return ECombatActionState::Dodging == CombatActionState;
+}
+
+bool UCombatComponent::IsDead() const
+{
+	return ECombatActionState::Dead == CombatActionState;
 }
 
 bool UCombatComponent::IsInvincible() const
@@ -206,6 +235,11 @@ void UCombatComponent::EndComboInputWindow()
 
 bool UCombatComponent::RequestHitReaction()
 {
+	if (ECombatActionState::Dead == CombatActionState)
+	{
+		return false;
+	}
+	
 	if (ECombatActionState::HitReaction == CombatActionState)
 	{
 		return false;
@@ -248,6 +282,11 @@ bool UCombatComponent::RequestHitReaction()
 bool UCombatComponent::IsHitReacting() const
 {
 	return ECombatActionState::HitReaction == CombatActionState;
+}
+
+bool UCombatComponent::IsDeathMontageFinished() const
+{
+	return bDeathMontageFinished;
 }
 
 ECombatActionState UCombatComponent::GetCombatActionState() const
@@ -977,5 +1016,79 @@ void UCombatComponent::CancelCurrentActionForHitReaction()
 	if (nullptr != OwnerCharacter)
 	{
 		OwnerCharacter->StopAnimMontage();
+	}
+}
+
+bool UCombatComponent::TryPlayDeathMontage()
+{
+	if (nullptr == DeathMontage)
+	{
+		return false;
+	}
+	
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	
+	if (nullptr == OwnerCharacter)
+	{
+		return false;
+	}
+	
+	USkeletalMeshComponent* OwnerMesh = OwnerCharacter->GetMesh();
+	
+	if (nullptr == OwnerMesh)
+	{
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = OwnerMesh->GetAnimInstance();
+	
+	if (nullptr == AnimInstance)
+	{
+		return false;
+	}
+	
+	const float MontageLength = OwnerCharacter->PlayAnimMontage(DeathMontage, DeathMontagePlayRate);
+	
+	if (0.0f >= MontageLength)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play DeathMontage."), *OwnerCharacter->GetName());
+		return false;
+	}
+	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &UCombatComponent::HandleDeathMontageEnded);
+	
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, DeathMontage);
+	
+	return true;
+}
+
+void UCombatComponent::HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != DeathMontage)
+	{
+		return;
+	}
+	
+	bDeathMontageFinished = true;
+	
+	UE_LOG(LogTemp, Log, TEXT("Player death montage ended. Interrupted: %s"), bInterrupted ? TEXT("true") : TEXT("false"));
+}
+
+void UCombatComponent::CancelCurrentActionForDeath()
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	
+	if (nullptr != OwnerCharacter)
+	{
+		OwnerCharacter->StopAnimMontage();
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
+		World->GetTimerManager().ClearTimer(HitReactionInvincibleTimerHandle);
 	}
 }
