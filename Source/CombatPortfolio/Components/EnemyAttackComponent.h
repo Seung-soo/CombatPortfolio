@@ -41,6 +41,7 @@ public:
 	void OpenAttackHitWindow();
 	void CloseAttackHitWindow();
 	void EndAttack();
+	void CancelAttack();
 	
 private:
 	bool TryPlayAttackMontage();

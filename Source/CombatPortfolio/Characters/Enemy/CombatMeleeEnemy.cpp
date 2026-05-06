@@ -8,6 +8,7 @@
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Animation/AnimMontage.h"
 
 ACombatMeleeEnemy::ACombatMeleeEnemy()
 {
@@ -46,6 +47,13 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
 	{
 		SetMeleeEnemyState(EMeleeEnemyState::Dead);
+		StopChaseMovement();
+		return;
+	}
+	
+	if (true == IsHitReacting())
+	{
+		SetMeleeEnemyState(EMeleeEnemyState::HitReacting);
 		StopChaseMovement();
 		return;
 	}
@@ -116,9 +124,33 @@ void ACombatMeleeEnemy::ApplyDeathState()
 	
 	StopChaseMovement();
 	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
+	}
+	
+	bHitReacting = false;
+	
 	SetMeleeEnemyState(EMeleeEnemyState::Dead);
 	SetActorTickEnabled(false);
 	TargetPlayerPawn.Reset();
+}
+
+void ACombatMeleeEnemy::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
+{
+	Super::HandleHealthChanged(CurrentHealth, MaxHealth, Delta);
+	
+	if (0.0f >= CurrentHealth)
+	{
+		return;
+	}
+	
+	if (0.0f > Delta)
+	{
+		StartHitReaction();
+	}
 }
 
 void ACombatMeleeEnemy::CachePlayerPawn()
@@ -281,6 +313,86 @@ void ACombatMeleeEnemy::TryAttackTarget()
 	}
 }
 
+void ACombatMeleeEnemy::StartHitReaction()
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return;
+	}
+	
+	bHitReacting = true;
+	SetMeleeEnemyState(EMeleeEnemyState::HitReacting);
+	
+	StopChaseMovement();
+	
+	if (nullptr != EnemyAttackComponent)
+	{
+		EnemyAttackComponent->CancelAttack();
+	}
+	
+	const bool bPlayedMontage = TryPlayHitReactionMontage();
+	
+	float ReactionDuration = HitReactionDuration;
+	
+	if (true == bPlayedMontage && nullptr != HitReactionMontage)
+	{
+		const float MontageDuration = HitReactionMontage->GetPlayLength() / FMath::Max(HitReactionMontagePlayRate, KINDA_SMALL_NUMBER);
+		ReactionDuration = FMath::Max(ReactionDuration, MontageDuration);
+	}
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr == World)
+	{
+		return;
+	}
+	
+	World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
+	World->GetTimerManager().SetTimer(
+		HitReactionTimerHandle,
+		this,
+		&ACombatMeleeEnemy::EndHitReaction,
+		ReactionDuration,
+		false
+	);
+}
+
+void ACombatMeleeEnemy::EndHitReaction()
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return;
+	}
+	
+	bHitReacting = false;
+	SetMeleeEnemyState(EMeleeEnemyState::Idle);
+	
+	UE_LOG(LogTemp, Log, TEXT("%s hit reaction ended."), *GetName());
+}
+
+bool ACombatMeleeEnemy::IsHitReacting() const
+{
+	return bHitReacting;
+}
+
+bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
+{
+	if (nullptr == HitReactionMontage)
+	{
+		return false;
+	}
+	
+	const float MontageLength = PlayAnimMontage(HitReactionMontage, HitReactionMontagePlayRate);
+	
+	if (0.0f >= MontageLength)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play hit reaction montage."), *GetName());
+		return false;
+	}
+	
+	return true;
+}
+
 void ACombatMeleeEnemy::SetMeleeEnemyState(EMeleeEnemyState NewState)
 {
 	if (MeleeEnemyState == NewState)
@@ -303,6 +415,8 @@ FString ACombatMeleeEnemy::GetMeleeEnemyStateDebugString() const
 		return TEXT("Chasing");
 	case EMeleeEnemyState::Attacking:
 		return TEXT("Attacking");
+	case EMeleeEnemyState::HitReacting:
+		return TEXT("HitReacting");
 	case EMeleeEnemyState::Dead:
 		return TEXT("Dead");
 	default:

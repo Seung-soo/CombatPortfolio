@@ -12,8 +12,11 @@ enum class EMeleeEnemyState : uint8
 	Idle UMETA(DisplayName = "Idle"),
 	Chasing UMETA(DisplayName = "Chasing"),
 	Attacking UMETA(DisplayName = "Attacking"),
+	HitReacting UMETA(DisplayName = "HitReacting"),
 	Dead UMETA(DisplayName = "Dead")
 };
+
+class UAnimMontage;
 
 /**
  * 
@@ -30,6 +33,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void ApplyDeathState() override;
+	virtual void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta) override;
 	
 private:
 	void CachePlayerPawn();
@@ -46,6 +50,11 @@ private:
 	void UpdateChaseMovement();
 	void StopChaseMovement();
 	void TryAttackTarget();
+	
+	void StartHitReaction();
+	void EndHitReaction();
+	bool IsHitReacting() const;
+	bool TryPlayHitReactionMontage();
 	
 	void SetMeleeEnemyState(EMeleeEnemyState NewState);
 	
@@ -75,6 +84,18 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "180.0"))
 	float FacingAngleTolerance = 20.0f;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float HitReactionDuration = 0.45f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> HitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
+	float HitReactionMontagePlayRate = 1.0f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	bool bHitReacting = false;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDrawMeleeDebug = true;
 	
@@ -85,4 +106,5 @@ private:
 private:
 	TWeakObjectPtr<APawn> TargetPlayerPawn;
 	
+	FTimerHandle HitReactionTimerHandle;
 };

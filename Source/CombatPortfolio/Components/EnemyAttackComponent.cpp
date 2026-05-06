@@ -191,6 +191,33 @@ void UEnemyAttackComponent::EndAttack()
 	UE_LOG(LogTemp, Log, TEXT("Enemy attack ended."));
 }
 
+void UEnemyAttackComponent::CancelAttack()
+{
+	if (false == bAttacking && false == bHitWindowOpen)
+	{
+		return;
+	}
+	
+	CloseAttackHitWindow();
+	
+	bAttacking = false;
+	ResetHitActors();
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
+	}
+	
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	
+	if (nullptr != OwnerCharacter && nullptr != AttackMontage)
+	{
+		OwnerCharacter->StopAnimMontage(AttackMontage);
+	}
+}
+
 bool UEnemyAttackComponent::TryPlayAttackMontage()
 {
 	if (nullptr == AttackMontage)

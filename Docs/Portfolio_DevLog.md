@@ -777,3 +777,34 @@ MeleeEnemy가 플레이어를 감지한 뒤 공격 거리까지 직접 이동하
 - Enemy attack trace is only performed while the hit window is open.
 - Hit actors are cached per attack to prevent duplicate damage.
 - Montage support is optional so combat can still be tested without animation assets.
+
+
+## Episode 28
+
+### Goal
+
+적이 플레이어 공격에 맞았을 때 이동과 공격을 중지하고 HitReaction 상태로 전환되도록 구현한다.
+
+### Completed
+
+- Added `HitReacting` state to MeleeEnemy
+- Added hit reaction duration
+- Added optional hit reaction montage
+- Overrode enemy health changed handling in MeleeEnemy
+- Started hit reaction when damage delta is negative
+- Stopped AI movement during hit reaction
+- Canceled enemy attack when hit reaction starts
+- Added `CancelAttack()` to EnemyAttackComponent
+- Closed hit window when enemy attack is canceled
+- Stopped attack montage when attack is canceled
+- Used timer to end hit reaction
+- Cleared hit reaction timer on death
+- Prevented hit reaction from starting when enemy is already dead
+
+### Technical Notes
+
+- HealthComponent remains responsible only for health and death.
+- MeleeEnemy owns hit reaction behavior.
+- Death has higher priority than hit reaction.
+- Hit reaction has higher priority than attack and chase.
+- Hit reaction montage is optional so the system works before enemy animation assets are ready.
