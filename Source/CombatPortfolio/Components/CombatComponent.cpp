@@ -114,7 +114,8 @@ bool UCombatComponent::RequestDeath()
 	
 	SetCombatActionState(ECombatActionState::Dead);
 	
-	SetInvincible(false);
+	SetDodgeInvincible(false);
+	SetHitReactionInvincible(false);
 	
 	const bool bDeathMontageStarted = TryPlayDeathMontage();
 	if (false == bDeathMontageStarted)
@@ -142,7 +143,7 @@ bool UCombatComponent::IsDead() const
 
 bool UCombatComponent::IsInvincible() const
 {
-	return bInvincible;
+	return bHitReactionInvincible || bDodgeInvincible;
 }
 
 bool UCombatComponent::CanStartAttack() const
@@ -343,7 +344,7 @@ bool UCombatComponent::StartDodge(const FVector& DodgeDirection)
 	
 	SetCombatActionState(ECombatActionState::Dodging);
 	
-	BeginInvincibility();
+	BeginDodgeInvincibility();
 	
 	ApplyDodgeMovement(DodgeDirection);
 	
@@ -418,9 +419,9 @@ void UCombatComponent::ApplyDodgeMovement(const FVector& DodgeDirection)
 	OwnerCharacter->LaunchCharacter(SafeDodgeDirection * DodgeStrength, true, false);
 }
 
-void UCombatComponent::BeginInvincibility()
+void UCombatComponent::BeginDodgeInvincibility()
 {
-	SetInvincible(true);
+	SetDodgeInvincible(true);
 	
 	UWorld* World = GetWorld();
 	
@@ -434,15 +435,15 @@ void UCombatComponent::BeginInvincibility()
 	World->GetTimerManager().SetTimer(
 		InvincibilityTimerHandle,
 		this,
-		&UCombatComponent::EndInvincibility,
+		&UCombatComponent::EndDodgeInvincibility,
 		DodgeInvincibleDuration,
 		false
 	);
 }
 
-void UCombatComponent::EndInvincibility()
+void UCombatComponent::EndDodgeInvincibility()
 {
-	SetInvincible(false);
+	SetDodgeInvincible(false);
 }
 
 bool UCombatComponent::TryBufferComboInput()
@@ -557,6 +558,11 @@ FName UCombatComponent::GetNextComboSectionName() const
 
 void UCombatComponent::FinishAttack()
 {
+	if (ECombatActionState::Attacking != CombatActionState)
+	{
+		return;
+	}
+	
 	SetHitWindowOpen(false);
 	SetComboInputWindowOpen(false);
 	SetComboInputBuffered(false);
@@ -630,25 +636,11 @@ void UCombatComponent::FinishDodge()
 		World->GetTimerManager().ClearTimer(DodgeFallbackTimerHandle);
 	}
 	
-	EndInvincibility();
+	EndDodgeInvincibility();
 	
 	SetCombatActionState(ECombatActionState::Idle);
 	
 	UE_LOG(LogTemp, Log, TEXT("Dodge finished."));
-}
-
-void UCombatComponent::SetInvincible(bool bNewInvincible)
-{
-	if (bInvincible == bNewInvincible)
-	{
-		return;
-	}
-	
-	bInvincible = bNewInvincible;
-	
-	OnInvincibilityChanged.Broadcast();
-	
-	UE_LOG(LogTemp, Log, TEXT("Invincible: %s"), true == bInvincible ? TEXT("true") : TEXT("false"));
 }
 
 void UCombatComponent::SetCombatActionState(ECombatActionState NewCombatActionState)
@@ -697,6 +689,44 @@ void UCombatComponent::SetComboInputBuffered(bool bNewComboInputBuffered)
 	bComboInputBuffered = bNewComboInputBuffered;
 	
 	OnComboStateChanged.Broadcast();
+}
+
+void UCombatComponent::SetDodgeInvincible(bool bNewInvincible)
+{
+	const bool bWasInvincible = IsInvincible();
+	
+	if (bDodgeInvincible == bNewInvincible)
+	{
+		return;
+	}
+	
+	bDodgeInvincible = bNewInvincible;
+	
+	if (bWasInvincible != IsInvincible())
+	{
+		OnInvincibilityChanged.Broadcast();
+	}
+}
+
+void UCombatComponent::SetHitReactionInvincible(bool bNewInvincible)
+{
+	const bool bWasInvincible = IsInvincible();
+	
+	if (bHitReactionInvincible == bNewInvincible)
+	{
+		return;
+	}
+	
+	bHitReactionInvincible = bNewInvincible;
+	
+	if (bWasInvincible != IsInvincible())
+	{
+		OnInvincibilityChanged.Broadcast();
+	}
+}
+
+void UCombatComponent::BroadcastInvincibilityIfChanged(bool bOldInvincible)
+{
 }
 
 void UCombatComponent::PerformAttackTrace()
@@ -965,11 +995,11 @@ void UCombatComponent::StartHitReactionInvincibility()
 {
 	if (0.0f >= HitReactionInvincibleDuration)
 	{
-		SetInvincible(false);
+		SetHitReactionInvincible(false);
 		return;
 	}
 	
-	SetInvincible(true);
+	SetHitReactionInvincible(true);
 	
 	UWorld* World = GetWorld();
 	
@@ -991,7 +1021,7 @@ void UCombatComponent::StartHitReactionInvincibility()
 
 void UCombatComponent::EndHitReactionInvincibility()
 {
-	SetInvincible(false);
+	SetHitReactionInvincible(false);
 }
 
 void UCombatComponent::HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted)
@@ -1068,10 +1098,10 @@ void UCombatComponent::CancelCurrentActionForInterrupt()
 		CancelAttack();
 		break;
 	case ECombatActionState::Dodging:
-		SetInvincible(false);
+		SetDodgeInvincible(false);
 		break;
 	case ECombatActionState::HitReaction:
-		SetInvincible(false);
+		SetHitReactionInvincible(false);
 		break;
 	case ECombatActionState::Idle:
 		break;
@@ -1091,7 +1121,7 @@ void UCombatComponent::CancelAttack()
 	
 	if (nullptr != OwnerCharacter)
 	{
-		OwnerCharacter->StopAnimMontage();
+		OwnerCharacter->StopAnimMontage(AttackMontage);
 	}
 	
 	if (ECombatActionState::Attacking == CombatActionState)

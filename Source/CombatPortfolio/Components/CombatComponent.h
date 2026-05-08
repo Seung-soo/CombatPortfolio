@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HealthComponent.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"
 #include "CombatComponent.generated.h"
@@ -114,8 +113,8 @@ private:
 	bool TryPlayDodgeMontage();
 	void ApplyDodgeMovement(const FVector& DodgeDirection);
 	
-	void BeginInvincibility();
-	void EndInvincibility();
+	void BeginDodgeInvincibility();
+	void EndDodgeInvincibility();
 	
 	bool TryBufferComboInput();
 	bool TryCommitBufferedCombo();
@@ -141,7 +140,9 @@ private:
 	void SetComboInputWindowOpen(bool bNewComboInputWindowOpen);
 	void SetComboInputBuffered(bool bNewComboInputBuffered);
 	
-	void SetInvincible(bool bNewInvincible);
+	void SetDodgeInvincible(bool bNewInvincible);
+	void SetHitReactionInvincible(bool bNewInvincible);
+	void BroadcastInvincibilityIfChanged(bool bOldInvincible);
 	
 	void PerformAttackTrace();
 	void ApplyDamageToHitActor(AActor* HitActor);
@@ -200,7 +201,10 @@ private:
 	bool bHitWindowOpen = false;
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
-	bool bInvincible = false;
+	bool bDodgeInvincible = false;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
+	bool bHitReactionInvincible = false;
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
 	int32 CurrentComboIndex = 0;

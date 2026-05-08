@@ -989,3 +989,54 @@ Enemy attack state completion is changed from timer-based handling to attack mon
 - Hit Window is controlled by AnimNotifyState.
 - Cooldown is still timer-based because it is a gameplay rule, not animation duration.
 - CancelAttack and EndAttack have different responsibilities.
+
+
+## Episode 35
+
+### Goal
+
+플레이어 공격 상태 종료를 Timer 기반 처리에서 Attack Montage End Delegate 기반 처리로 전환하고, 정상 공격 종료와 강제 취소 흐름을 분리한다.
+
+### Completed
+
+- Bound Montage End Delegate for player attack montage
+- Moved normal attack completion to montage end callback
+- Separated normal attack finish from forced attack cancel
+- Prevented interrupted attack montage from continuing combo flow
+- Preserved combo input queue only for normal attack completion
+- Reset attack hit state when starting the next combo hit
+- Prevented stale hit actors from blocking damage in later combo hits
+- Ensured forced cancel does not consume queued combo input
+- Kept `CancelAttack()` responsible for forced interruption only
+
+### Technical Notes
+
+- Normal attack completion and forced attack cancellation have different responsibilities.
+- `bInterrupted` must be checked in the montage end delegate.
+- Hit actors should be reset per combo hit, not for the entire combo chain.
+- Timer fallback is intentionally not used for attack completion.
+
+
+## Episode 36
+
+### Goal
+
+무적 상태를 단일 `bInvincible` 플래그에서 회피 무적과 피격 무적으로 분리하여, 여러 무적 원인이 겹쳐도 안전하게 처리되도록 개선한다.
+
+### Completed
+
+- Replaced single invincibility flag usage with typed invincibility states
+- Added dodge invincibility state
+- Added hit reaction invincibility state
+- Updated `IsInvincible()` to combine multiple invincibility sources
+- Prevented dodge invincibility ending from disabling hit invincibility
+- Prevented hit invincibility ending from disabling dodge invincibility
+- Cleared all invincibility states on death
+- Kept enemy attack damage blocking dependent only on `IsInvincible()`
+
+### Technical Notes
+
+- Invincibility is now source-based rather than represented by a single boolean.
+- External systems should not know which invincibility type is active.
+- `IsInvincible()` is the public query point for damage blocking.
+- Death has higher priority than all invincibility states.
