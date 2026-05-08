@@ -874,3 +874,118 @@ MeleeEnemy가 플레이어를 감지한 뒤 공격 거리까지 직접 이동하
 - Death completion is detected through Montage End Delegate, not a timer.
 - Character movement is disabled on death.
 - Death state has higher priority than hit reaction, dodge, attack, and idle.
+
+
+
+## Episode 31
+
+### Goal
+
+플레이어가 공격 중 피격되거나 사망할 때 공격 판정, 콤보 상태, 몽타주 상태가 안전하게 정리되도록 CombatComponent의 상태 취소 흐름을 리팩터링한다.
+
+### Completed
+
+- Added common interrupt cancellation flow
+- Added `CancelCurrentActionForInterrupt()`
+- Added `CancelAttack()`
+- Added `ResetAttackHitState()`
+- Added `ResetComboState()`
+- Closed attack hit window on forced interrupt
+- Cleared hit actors on forced interrupt
+- Reset combo index and queued combo input on forced interrupt
+- Stopped current montage on attack cancel
+- Updated hit reaction flow to cancel current action first
+- Updated death flow to cancel current action first
+- Clarified difference between normal montage end and forced cancel
+
+### Technical Notes
+
+- StopAnimMontage alone is not enough to cancel an attack.
+- Attack cancellation must also reset gameplay state.
+- Forced cancel ignores queued combo input.
+- Hit reaction and death have higher priority than attack.
+
+
+
+## Episode 32
+
+### Goal
+
+플레이어 HitReaction 상태 종료를 Timer 기반 처리에서 HitReaction Montage End Delegate 기반 처리로 전환한다.
+
+### Completed
+
+- Required `AM_Player_HitReact` for player hit reaction
+- Removed timer-based player hit reaction recovery
+- Bound Montage End Delegate for player hit reaction montage
+- Ended `HitReacting` state only when the hit reaction montage finishes
+- Prevented hit reaction from starting while player is dead
+- Preserved hit reaction invincibility as a separate gameplay-duration rule
+- Prevented death state from being overwritten by delayed hit reaction completion
+- Kept `ACombatPlayerCharacter::HandleHealthChanged()` flow unchanged
+- Kept hit reaction request ownership inside `UCombatComponent`
+
+### Technical Notes
+
+- HitReaction state is now animation-driven rather than timer-driven.
+- `AM_Player_HitReact` is treated as a required asset.
+- Timer fallback is intentionally not used when the montage is missing or fails to play.
+- Montage End Delegate is responsible for calling the hit reaction completion flow.
+- Hit reaction invincibility and hit reaction state duration are intentionally separated.
+- `Dead` has higher priority than `HitReacting`, so hit reaction completion must not return the player to `Idle` after death.
+
+### Validation
+
+- Player enters `HitReacting` when damaged while alive.
+- `AM_Player_HitReact` plays on damage.
+- Player returns to `Idle` only after the hit reaction montage ends.
+- Player does not enter `HitReacting` while dead.
+- If the player dies during hit reaction, montage completion does not override `Dead`.
+- Missing `HitReactionMontage` logs an error instead of using a timer fallback.
+
+
+## Episode 33
+
+### Goal
+
+Enemy HitReaction 상태 종료를 Timer 기반에서 HitReaction Montage End Delegate 기반으로 전환한다.
+
+### Completed
+
+- Required enemy hit reaction montage
+- Removed timer-based enemy hit reaction recovery
+- Bound Montage End Delegate for enemy hit reaction
+- Ended HitReaction only when AM_Enemy_HitReact finishes
+- Prevented Dead enemies from returning to Idle through hit reaction end
+- Kept enemy movement and attack disabled during HitReaction
+
+### Technical Notes
+
+- HitReaction is animation-driven.
+- Timer fallback is intentionally not used.
+- Death has higher priority than HitReaction.
+
+
+## Episode 34
+
+### Goal
+
+Enemy attack state completion is changed from timer-based handling to attack montage end delegate handling.
+
+### Completed
+
+- Removed timer-based enemy attack end handling
+- Required enemy attack montage for attack execution
+- Bound Montage End Delegate for enemy attack montage
+- Ended enemy attack state through montage completion
+- Kept Hit Window controlled by AnimNotifyState
+- Kept attack cooldown timer as a gameplay cooldown
+- Made CancelAttack safe during montage interruption
+- Removed instant trace fallback when no attack montage is assigned
+
+### Technical Notes
+
+- Attack montage end controls the end of the attack state.
+- Hit Window is controlled by AnimNotifyState.
+- Cooldown is still timer-based because it is a gameplay rule, not animation duration.
+- CancelAttack and EndAttack have different responsibilities.

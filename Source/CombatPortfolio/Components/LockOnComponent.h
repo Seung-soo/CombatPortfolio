@@ -33,7 +33,7 @@ public:
 
 public:
 	UPROPERTY(BlueprintAssignable, Category = "LockOn|Event")
-	FOnLockOnTargetChangedSignature OnLockOnTargetChaged;
+	FOnLockOnTargetChangedSignature OnLockOnTargetChanged;
 	
 private:
 	AActor* FindBestLockOnTarget() const;

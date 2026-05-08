@@ -124,13 +124,6 @@ void ACombatMeleeEnemy::ApplyDeathState()
 	
 	StopChaseMovement();
 	
-	UWorld* World = GetWorld();
-	
-	if (nullptr == World)
-	{
-		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
-	}
-	
 	bHitReacting = false;
 	
 	SetMeleeEnemyState(EMeleeEnemyState::Dead);
@@ -165,12 +158,11 @@ bool ACombatMeleeEnemy::HasValidTarget() const
 
 bool ACombatMeleeEnemy::IsTargetDead() const
 {
-	if (const APawn* TargetPawn = TargetPlayerPawn.Get())
+	const APawn* TargetPawn = TargetPlayerPawn.Get();
+	
+	if (nullptr == TargetPawn)
 	{
-		if (nullptr == TargetPawn)
-		{
-			return true;
-		}
+		return true;
 	}
 	
 	UHealthComponent* TargetHealthComponent = TargetPlayerPawn->FindComponentByClass<UHealthComponent>();
@@ -332,29 +324,11 @@ void ACombatMeleeEnemy::StartHitReaction()
 	
 	const bool bPlayedMontage = TryPlayHitReactionMontage();
 	
-	float ReactionDuration = HitReactionDuration;
-	
-	if (true == bPlayedMontage && nullptr != HitReactionMontage)
+	if (true == bPlayedMontage)
 	{
-		const float MontageDuration = HitReactionMontage->GetPlayLength() / FMath::Max(HitReactionMontagePlayRate, KINDA_SMALL_NUMBER);
-		ReactionDuration = FMath::Max(ReactionDuration, MontageDuration);
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to start hit reaction montage."), *GetName());
+		EndHitReaction();
 	}
-	
-	UWorld* World = GetWorld();
-	
-	if (nullptr == World)
-	{
-		return;
-	}
-	
-	World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
-	World->GetTimerManager().SetTimer(
-		HitReactionTimerHandle,
-		this,
-		&ACombatMeleeEnemy::EndHitReaction,
-		ReactionDuration,
-		false
-	);
 }
 
 void ACombatMeleeEnemy::EndHitReaction()
@@ -382,7 +356,14 @@ bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
 		return false;
 	}
 	
-	const float MontageLength = PlayAnimMontage(HitReactionMontage, HitReactionMontagePlayRate);
+	UAnimInstance* AnimInstance = GetMesh() != nullptr ? GetMesh()->GetAnimInstance() : nullptr;
+	
+	if (nullptr == AnimInstance)
+	{
+		return false;
+	}
+	
+	const float MontageLength = AnimInstance->Montage_Play(HitReactionMontage, HitReactionMontagePlayRate);
 	
 	if (0.0f >= MontageLength)
 	{
@@ -390,7 +371,21 @@ bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
 		return false;
 	}
 	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &ACombatMeleeEnemy::HandleHitReactionMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, HitReactionMontage);
+	
 	return true;
+}
+
+void ACombatMeleeEnemy::HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != HitReactionMontage)
+	{
+		return;
+	}
+	
+	EndHitReaction();
 }
 
 void ACombatMeleeEnemy::SetMeleeEnemyState(EMeleeEnemyState NewState)

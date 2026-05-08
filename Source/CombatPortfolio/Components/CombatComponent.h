@@ -156,11 +156,14 @@ private:
 	bool TryPlayHitReactionMontage();
 	void StartHitReactionInvincibility();
 	void EndHitReactionInvincibility();
-	void CancelCurrentActionForHitReaction();
+	void HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	
 	bool TryPlayDeathMontage();
 	void HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-	void CancelCurrentActionForDeath();
+	
+	void CancelCurrentActionForInterrupt();
+	void CancelAttack();
+	void ResetAttackHitState();
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
@@ -208,9 +211,6 @@ private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
 	bool bComboInputBuffered = false;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", Clamp = "0.0"))
-	float HitReactionDuration = 0.45f;
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float HitReactionInvincibleDuration = 0.35f;
 
@@ -233,7 +233,6 @@ private:
 	FTimerHandle DodgeFallbackTimerHandle;
 	FTimerHandle InvincibilityTimerHandle;
 	
-	FTimerHandle HitReactionTimerHandle;
 	FTimerHandle HitReactionInvincibleTimerHandle;
 	
 	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;

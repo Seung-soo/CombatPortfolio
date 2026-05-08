@@ -70,7 +70,6 @@ void UCombatComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 	if (World != nullptr)
 	{
-		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
 		World->GetTimerManager().ClearTimer(HitReactionInvincibleTimerHandle);
 	}
 	
@@ -109,13 +108,13 @@ bool UCombatComponent::RequestDeath()
 		return false;
 	}
 	
-	CancelCurrentActionForDeath();
+	CancelCurrentActionForInterrupt();
 	
 	bDeathMontageFinished = false;
 	
 	SetCombatActionState(ECombatActionState::Dead);
 	
-	bInvincible = false;
+	SetInvincible(false);
 	
 	const bool bDeathMontageStarted = TryPlayDeathMontage();
 	if (false == bDeathMontageStarted)
@@ -250,7 +249,7 @@ bool UCombatComponent::RequestHitReaction()
 		return false;
 	}
 	
-	CancelCurrentActionForHitReaction();
+	CancelCurrentActionForInterrupt();
 	
 	SetCombatActionState(ECombatActionState::HitReaction);
 	
@@ -258,24 +257,12 @@ bool UCombatComponent::RequestHitReaction()
 	
 	const bool bPlayedMontage = TryPlayHitReactionMontage();
 	
-	float ReactionDuration = HitReactionDuration;
-	
-	if (true == bPlayedMontage && nullptr != HitReactionMontage)
+	if (false == bPlayedMontage)
 	{
-		const float MontageDuration = HitReactionMontage->GetPlayLength() / FMath::Max(HitReactionMontagePlayRate, KINDA_SMALL_NUMBER);
-		ReactionDuration = FMath::Max(ReactionDuration, MontageDuration);
+		UE_LOG(LogTemp, Error, TEXT("HitReactionMontage failed. Assign AM_Player_HitReaction"));
+		EndHitReaction();
 	}
-	
-	UWorld* World = GetWorld();
-	
-	if (nullptr == World)
-	{
-		return true;
-	}
-	
-	World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
-	World->GetTimerManager().SetTimer(HitReactionTimerHandle, this, &UCombatComponent::EndHitReaction, ReactionDuration, false);
-	
+
 	return true;
 }
 
@@ -315,7 +302,7 @@ bool UCombatComponent::StartAttack()
 		UE_LOG(LogTemp, Warning, TEXT("Attack failed: ComboAttackDataList is empty"));
 		return false;
 	}
-	
+
 	ResetComboState();
 	
 	const float MontageDuration = AnimInstance->Montage_Play(AttackMontage, AttackPlayRate);
@@ -942,13 +929,6 @@ void UCombatComponent::EndHitReaction()
 	
 	SetCombatActionState(ECombatActionState::Idle);
 	
-	UWorld* World = GetWorld();
-	
-	if (nullptr != World)
-	{
-		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
-	}
-	
 	UE_LOG(LogTemp, Log, TEXT("Player hit reaction ended."));
 }
 
@@ -959,20 +939,24 @@ bool UCombatComponent::TryPlayHitReactionMontage()
 		return false;
 	}
 	
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	UAnimInstance* AnimInstance = GetOwnerAnimInstance();
 	
-	if (nullptr == OwnerCharacter)
+	if (nullptr == AnimInstance)
 	{
 		return false;
 	}
 	
-	const float MontageLength = OwnerCharacter->PlayAnimMontage(HitReactionMontage, HitReactionMontagePlayRate);
+	const float MontageLength = AnimInstance->Montage_Play(HitReactionMontage, HitReactionMontagePlayRate);
 	
 	if (0.0f >= MontageLength)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s failed to play player hit reaction montage."), *OwnerCharacter->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("HitReactionMontage failed to play."));
 		return false;
 	}
+	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &UCombatComponent::HandleHitReactionMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, HitReactionMontage);
 	
 	return true;
 }
@@ -981,11 +965,11 @@ void UCombatComponent::StartHitReactionInvincibility()
 {
 	if (0.0f >= HitReactionInvincibleDuration)
 	{
-		bInvincible = false;
+		SetInvincible(false);
 		return;
 	}
 	
-	bInvincible = true;
+	SetInvincible(true);
 	
 	UWorld* World = GetWorld();
 	
@@ -1007,16 +991,17 @@ void UCombatComponent::StartHitReactionInvincibility()
 
 void UCombatComponent::EndHitReactionInvincibility()
 {
-	bInvincible = false;
+	SetInvincible(false);
 }
 
-void UCombatComponent::CancelCurrentActionForHitReaction()
+void UCombatComponent::HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (nullptr != OwnerCharacter)
+	if (Montage != HitReactionMontage)
 	{
-		OwnerCharacter->StopAnimMontage();
+		return;
 	}
+	
+	EndHitReaction();
 }
 
 bool UCombatComponent::TryPlayDeathMontage()
@@ -1075,8 +1060,33 @@ void UCombatComponent::HandleDeathMontageEnded(UAnimMontage* Montage, bool bInte
 	UE_LOG(LogTemp, Log, TEXT("Player death montage ended. Interrupted: %s"), bInterrupted ? TEXT("true") : TEXT("false"));
 }
 
-void UCombatComponent::CancelCurrentActionForDeath()
+void UCombatComponent::CancelCurrentActionForInterrupt()
 {
+	switch (CombatActionState)
+	{
+	case ECombatActionState::Attacking:
+		CancelAttack();
+		break;
+	case ECombatActionState::Dodging:
+		SetInvincible(false);
+		break;
+	case ECombatActionState::HitReaction:
+		SetInvincible(false);
+		break;
+	case ECombatActionState::Idle:
+		break;
+	case ECombatActionState::Dead:
+		break;
+	default:
+		break;
+	}
+}
+
+void UCombatComponent::CancelAttack()
+{
+	ResetAttackHitState();
+	ResetComboState();
+	
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	
 	if (nullptr != OwnerCharacter)
@@ -1084,11 +1094,16 @@ void UCombatComponent::CancelCurrentActionForDeath()
 		OwnerCharacter->StopAnimMontage();
 	}
 	
-	UWorld* World = GetWorld();
-	
-	if (nullptr != World)
+	if (ECombatActionState::Attacking == CombatActionState)
 	{
-		World->GetTimerManager().ClearTimer(HitReactionTimerHandle);
-		World->GetTimerManager().ClearTimer(HitReactionInvincibleTimerHandle);
+		SetCombatActionState(ECombatActionState::Idle);
 	}
+	
+	UE_LOG(LogTemp, Log, TEXT("Player attack canceled"));
+}
+
+void UCombatComponent::ResetAttackHitState()
+{
+	SetHitWindowOpen(false);
+	HitActorsThisAttack.Reset();
 }

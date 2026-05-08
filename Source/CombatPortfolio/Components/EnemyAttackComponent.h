@@ -63,6 +63,8 @@ private:
 	
 	void SetComponentTickByHitWindow();
 	
+	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true"))
 	bool bStartAttackOnBeginPlay = true;
@@ -108,5 +110,4 @@ private:
 	
 	FTimerHandle AutoAttackTimerHandle;
 	FTimerHandle AttackCooldownTimerHandle;
-	FTimerHandle AttackEndTimerHandle;
 };

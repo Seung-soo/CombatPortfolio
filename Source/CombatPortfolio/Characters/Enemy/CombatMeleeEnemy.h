@@ -56,6 +56,8 @@ private:
 	bool IsHitReacting() const;
 	bool TryPlayHitReactionMontage();
 	
+	void HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	
 	void SetMeleeEnemyState(EMeleeEnemyState NewState);
 	
 	FString GetMeleeEnemyStateDebugString() const;
@@ -84,9 +86,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "180.0"))
 	float FacingAngleTolerance = 20.0f;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float HitReactionDuration = 0.45f;
-	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> HitReactionMontage;
 	
@@ -105,6 +104,4 @@ private:
 	
 private:
 	TWeakObjectPtr<APawn> TargetPlayerPawn;
-	
-	FTimerHandle HitReactionTimerHandle;
 };

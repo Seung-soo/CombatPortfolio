@@ -30,16 +30,7 @@ void UEnemyAttackComponent::BeginPlay()
 void UEnemyAttackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopAutoAttack();
-	
-	UWorld* World = GetWorld();
-	
-	if (nullptr != World)
-	{
-		World->GetTimerManager().ClearTimer(AttackCooldownTimerHandle);
-		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
 
-	}
-	
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -180,14 +171,7 @@ void UEnemyAttackComponent::EndAttack()
 	
 	bAttacking = false;
 	ResetHitActors();
-	
-	UWorld* World = GetWorld();
-	
-	if (nullptr != World)
-	{
-		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
-	}
-	
+
 	UE_LOG(LogTemp, Log, TEXT("Enemy attack ended."));
 }
 
@@ -202,14 +186,7 @@ void UEnemyAttackComponent::CancelAttack()
 	
 	bAttacking = false;
 	ResetHitActors();
-	
-	UWorld* World = GetWorld();
-	
-	if (nullptr != World)
-	{
-		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
-	}
-	
+
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	
 	if (nullptr != OwnerCharacter && nullptr != AttackMontage)
@@ -232,7 +209,21 @@ bool UEnemyAttackComponent::TryPlayAttackMontage()
 		return false;
 	}
 	
-	const float MontageLength = OwnerCharacter->PlayAnimMontage(AttackMontage, AttackMontagePlayRate);
+	USkeletalMeshComponent* OwnerMesh = OwnerCharacter->GetMesh();
+	
+	if (nullptr == OwnerMesh)
+	{
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = OwnerMesh->GetAnimInstance();
+	
+	if (nullptr == AnimInstance)
+	{
+		return false;
+	}
+	
+	const float MontageLength = AnimInstance->Montage_Play(AttackMontage, AttackMontagePlayRate);
 	
 	if (0.0f >= MontageLength)
 	{
@@ -240,19 +231,9 @@ bool UEnemyAttackComponent::TryPlayAttackMontage()
 		return false;
 	}
 	
-	UWorld* World = GetWorld();
-	
-	if (nullptr != World)
-	{
-		World->GetTimerManager().ClearTimer(AttackEndTimerHandle);
-		World->GetTimerManager().SetTimer(
-			AttackEndTimerHandle,
-			this,
-			&UEnemyAttackComponent::EndAttack,
-			MontageLength,
-			false
-		);
-	}
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &UEnemyAttackComponent::HandleAttackMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, AttackMontage);
 	
 	UE_LOG(LogTemp, Log, TEXT("%s played enemy attack montage. Length: %.2f"), *OwnerCharacter->GetName(), MontageLength);
 	
@@ -508,4 +489,14 @@ void UEnemyAttackComponent::EndAttackCooldown()
 void UEnemyAttackComponent::SetComponentTickByHitWindow()
 {
 	SetComponentTickEnabled(bHitWindowOpen);
+}
+
+void UEnemyAttackComponent::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != AttackMontage)
+	{
+		return;
+	}
+	
+	EndAttack();
 }

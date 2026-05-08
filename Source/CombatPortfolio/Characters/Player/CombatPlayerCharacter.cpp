@@ -100,7 +100,7 @@ void ACombatPlayerCharacter::BeginPlay()
 	
 	if (nullptr != LockOnComponent)
 	{
-		LockOnComponent->OnLockOnTargetChaged.AddDynamic(this, &ACombatPlayerCharacter::HandleLockOnTargetChanged);
+		LockOnComponent->OnLockOnTargetChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleLockOnTargetChanged);
 	}
 	
 	CreatePlayerHUD();

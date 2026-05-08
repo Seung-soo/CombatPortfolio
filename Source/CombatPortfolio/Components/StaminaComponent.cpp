@@ -93,7 +93,7 @@ bool UStaminaComponent::StartStaminaDrain(float DrainRate)
 	
 	UWorld* World = GetWorld();
 	
-	if (nullptr == World)
+	if (nullptr != World)
 	{
 		World->GetTimerManager().ClearTimer(StaminaRegenDelayTimerHandle);
 	}

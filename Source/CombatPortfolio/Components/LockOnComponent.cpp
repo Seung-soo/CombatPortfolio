@@ -247,7 +247,7 @@ void ULockOnComponent::SetLockOnTarget(AActor* NewTarget)
 	
 	SetComponentTickEnabled(IsLockedOn());
 	
-	OnLockOnTargetChaged.Broadcast();
+	OnLockOnTargetChanged.Broadcast();
 }
 
 void ULockOnComponent::UpdateLockOnValidation()
