@@ -11,6 +11,7 @@ class UHealthComponent;
 class UEnemyAttackComponent;
 class ULockOnMarkerComponent;
 class UEnemyHealthBarComponent;
+class UHitStopComponent;
 
 UCLASS()
 class COMBATPORTFOLIO_API ACombatEnemyBase : public ACharacter
@@ -49,6 +50,9 @@ protected:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UEnemyHealthBarComponent> EnemyHealthBarComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
+	TObjectPtr<UHitStopComponent> HitStopComponent;
 
 public:
 	UHealthComponent* GetHealthComponent() const;

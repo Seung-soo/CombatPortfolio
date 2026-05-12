@@ -13,6 +13,7 @@ class UCombatComponent;
 class UStaminaComponent;
 class UHealthComponent;
 class ULockOnComponent;
+class UHitStopComponent;
 class UPlayerHUDWidget;
 struct FInputActionValue;
 
@@ -71,6 +72,9 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULockOnComponent> LockOnComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UHitStopComponent> HitStopComponent;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -211,6 +215,9 @@ private:
 	
 	UFUNCTION()
 	void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta);
+	
+	UFUNCTION()
+	void HandleDamaged(const FCombatDamageInfo& DamageInfo);
 	
 	UFUNCTION()
 	void HandleDeath();

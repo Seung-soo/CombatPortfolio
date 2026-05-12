@@ -6,6 +6,7 @@
 #include "CombatComponent.h"
 #include "HealthComponent.h"
 #include "Animation/AnimMontage.h"
+#include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "GameFramework/Character.h"
 
 // Sets default values for this component's properties
@@ -333,13 +334,15 @@ void UEnemyAttackComponent::PerformAttackTrace()
 			continue;
 		}
 		
-		ApplyDamageToActor(HitActor);
+		ApplyDamageToActor(HitResult);
 		AddHitActor(HitActor);
 	}
 }
 
-void UEnemyAttackComponent::ApplyDamageToActor(AActor* TargetActor)
+void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 {
+	AActor* TargetActor = HitResult.GetActor();
+	
 	if (nullptr == TargetActor)
 	{
 		return;
@@ -363,7 +366,24 @@ void UEnemyAttackComponent::ApplyDamageToActor(AActor* TargetActor)
 		return;
 	}
 	
-	const bool bDamageApplied = HealthComponent->ApplyDamage(AttackDamage);
+	AActor* OwnerActor = GetOwner();
+	
+	FCombatDamageInfo DamageInfo;
+	DamageInfo.DamageAmount = AttackDamage;
+	DamageInfo.InstigatorActor = OwnerActor;
+	DamageInfo.DamageCauser = OwnerActor;
+	DamageInfo.HitActor = TargetActor;
+	DamageInfo.HitLocation = HitResult.ImpactPoint;
+	DamageInfo.HitNormal = HitResult.ImpactNormal;
+	DamageInfo.HitDirection = nullptr != OwnerActor ? 
+		(TargetActor->GetActorLocation() - OwnerActor->GetActorLocation()).GetSafeNormal() : FVector::ZeroVector;
+	DamageInfo.HitStrength = HitStrength;
+	DamageInfo.HitDirectionType = UCombatDamageLibrary::CalculateHitDirectionFromIncomingDirection(TargetActor, DamageInfo.HitDirection);
+	DamageInfo.KnockbackStrength = KnockbackStrength;
+	DamageInfo.HitStopDuration = HitStopDuration;
+	DamageInfo.HitStopTimeDilation = HitStopTimeDilation;
+	
+	const bool bDamageApplied = HealthComponent->ApplyDamage(DamageInfo);
 	
 	if (false == bDamageApplied)
 	{
@@ -371,7 +391,7 @@ void UEnemyAttackComponent::ApplyDamageToActor(AActor* TargetActor)
 		return;
 	}
 	
-	UE_LOG(LogTemp, Log, TEXT("Enemy applied %.1f damage to %s. HP: %.1f / %.1f"), AttackDamage, *TargetActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
+	UE_LOG(LogTemp, Log, TEXT("Enemy applied %.1f damage to %s. HP: %.1f / %.1f"), DamageInfo.DamageAmount, *TargetActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
 }
 
 bool UEnemyAttackComponent::IsDamageBlockedByInvincibility(AActor* TargetActor) const

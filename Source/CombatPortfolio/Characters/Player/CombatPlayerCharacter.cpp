@@ -13,6 +13,8 @@
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/LockOnComponent.h"
 #include "DrawDebugHelpers.h"
+#include "CombatPortfolio/Combat/CombatDamageLibrary.h"
+#include "CombatPortfolio/Components/HitStopComponent.h"
 #include "CombatPortfolio/UI/PlayerHUDWidget.h"
 
 // Sets default values
@@ -52,6 +54,8 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	
 	LockOnComponent = CreateDefaultSubobject<ULockOnComponent>(TEXT("LockOnComponent"));
+	
+	HitStopComponent = CreateDefaultSubobject<UHitStopComponent>(TEXT("HitStopComponent"));
 }
 
 void ACombatPlayerCharacter::DebugApplyDamageToPlayer(float DamageAmount)
@@ -95,6 +99,7 @@ void ACombatPlayerCharacter::BeginPlay()
 	if (nullptr != HealthComponent)
 	{
 		HealthComponent->OnHealthChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleHealthChanged);
+		HealthComponent->OnDamaged.AddDynamic(this, &ACombatPlayerCharacter::HandleDamaged);
 		HealthComponent->OnDeath.AddDynamic(this, &ACombatPlayerCharacter::HandleDeath);
 	}
 	
@@ -718,26 +723,37 @@ void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxH
 	
 	UE_LOG(LogTemp, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 	
-	if (0.0f > Delta && 0.0f < CurrentHealth)
-	{
-		if (nullptr != CombatComponent)
-		{
-			const bool bHitReactionStarted = CombatComponent->RequestHitReaction();
-			
-			if (true == bHitReactionStarted)
-			{
-				bWantsToSprint = false;
-				UpdateMovementState();
-				UpdateMovementSpeed();
-			}
-		}
-	}
-	
 	if (0.0f > Delta && nullptr != GEngine)
 	{
 		const FString DebugText = FString::Printf(TEXT("Player Hit! HP: %.1f / %.1f"), CurrentHealth, MaxHealth);
 		
 		GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, DebugText);
+	}
+}
+
+void ACombatPlayerCharacter::HandleDamaged(const FCombatDamageInfo& DamageInfo)
+{
+	UCombatDamageLibrary::ApplyHitStopFromDamageInfo(DamageInfo);
+	
+	UCombatDamageLibrary::ApplyKnockbackFromDamageInfo(DamageInfo);
+	
+	if (nullptr != HealthComponent && 0.0f >= HealthComponent->GetCurrentHealth())
+	{
+		return;
+	}
+	
+	if (nullptr == CombatComponent)
+	{
+		return;
+	}
+	
+	const bool bHitReactionStarted = CombatComponent->RequestHitReaction(DamageInfo);
+	
+	if (true == bHitReactionStarted)
+	{
+		bWantsToSprint = false;
+		UpdateMovementState();
+		UpdateMovementSpeed();
 	}
 }
 

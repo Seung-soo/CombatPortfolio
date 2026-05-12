@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CombatEnemyBase.h"
+#include "CombatPortfolio/Combat/CombatDamageType.h"
 #include "CombatMeleeEnemy.generated.h"
 
 UENUM(BlueprintType)
@@ -51,10 +52,14 @@ private:
 	void StopChaseMovement();
 	void TryAttackTarget();
 	
-	void StartHitReaction();
+	UFUNCTION()
+	void HandleDamaged(const FCombatDamageInfo& DamageInfo);
+	
+	void StartHitReaction(const FCombatDamageInfo& DamageInfo);
 	void EndHitReaction();
 	bool IsHitReacting() const;
-	bool TryPlayHitReactionMontage();
+	bool TryPlayHitReactionMontage(const FCombatDamageInfo& DamageInfo);
+	UAnimMontage* GetHitReactionMontageByDirection(ECombatHitDirection HitDirection) const;
 	
 	void HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	
@@ -87,7 +92,19 @@ private:
 	float FacingAngleTolerance = 20.0f;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> HitReactionMontage;
+	TObjectPtr<UAnimMontage> FrontHitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> BackHitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> LeftHitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> RightHitReactionMontage;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> CurrentHitReactionMontage;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
 	float HitReactionMontagePlayRate = 1.0f;

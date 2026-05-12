@@ -25,7 +25,16 @@ void UHealthComponent::BeginPlay()
 
 bool UHealthComponent::ApplyDamage(float DamageAmount)
 {
-	if (DamageAmount <= 0.0f)
+	FCombatDamageInfo DamageInfo;
+	DamageInfo.DamageAmount = DamageAmount;
+	DamageInfo.HitActor = GetOwner();
+	
+	return ApplyDamage(DamageInfo);
+}
+
+bool UHealthComponent::ApplyDamage(const FCombatDamageInfo& DamageInfo)
+{
+	if (0.0f >= DamageInfo.DamageAmount)
 	{
 		return false;
 	}
@@ -35,8 +44,32 @@ bool UHealthComponent::ApplyDamage(float DamageAmount)
 		return false;
 	}
 	
-	const float NewHealth = CurrentHealth - DamageAmount;
+	if (nullptr != DamageInfo.HitActor && DamageInfo.HitActor != GetOwner())
+	{
+		return false;
+	}
+	
+	const float OldHealth = CurrentHealth;
+	const float NewHealth = CurrentHealth - DamageInfo.DamageAmount;
+	
 	SetCurrentHealth(NewHealth);
+	
+	if (true == FMath::IsNearlyEqual(OldHealth, CurrentHealth))
+	{
+		return false;
+	}
+	
+	OnDamaged.Broadcast(DamageInfo);
+	
+	UE_LOG(LogTemp, Log, TEXT("DamageInfo | Damage: %.1f | Knockback: %.1f | Instigator: %s | Target: %s | Strength: %s | Direction: %s"),
+		DamageInfo.DamageAmount,
+		DamageInfo.KnockbackStrength,
+		*GetNameSafe(DamageInfo.InstigatorActor),
+		*GetNameSafe(DamageInfo.HitActor),
+		GetCombatHitStrengthDebugString(DamageInfo.HitStrength),
+		GetCombatHitDirectionDebugString(DamageInfo.HitDirectionType));
+	
+	TryHandleDeath();
 	
 	return true;
 }
@@ -82,16 +115,27 @@ void UHealthComponent::SetCurrentHealth(float NewHealth)
 	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth, Delta);
 	
 	UE_LOG(LogTemp, Log, TEXT("Health changed: %.1f / %.1f, Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
-	
-	if (0.0f >= CurrentHealth && false == bDead)
+}
+
+void UHealthComponent::TryHandleDeath()
+{
+	if (0.0f < CurrentHealth)
 	{
-		bDead = true;
-		
-		const AActor* OwnerActor = GetOwner();
-		const FString OwnerName = nullptr != OwnerActor ? OwnerActor->GetName() : TEXT("UnknownOwner");
-		
-		UE_LOG(LogTemp, Log, TEXT("Owner died: %s"), *OwnerName);
-		
-		OnDeath.Broadcast();
+		return;
 	}
+	
+	if (true == bDead)
+	{
+		return;
+	}
+	
+	bDead = true;
+
+	const AActor* OwnerActor = GetOwner();
+	const FString OwnerName = nullptr != OwnerActor ? OwnerActor->GetName() : TEXT("UnknownOwner");
+
+	UE_LOG(LogTemp, Log, TEXT("Owner died: %s"), *OwnerName);
+
+	OnDeath.Broadcast();
+\
 }

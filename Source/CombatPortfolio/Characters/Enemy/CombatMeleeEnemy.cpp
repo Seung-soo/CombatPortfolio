@@ -9,6 +9,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Animation/AnimMontage.h"
+#include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 
 ACombatMeleeEnemy::ACombatMeleeEnemy()
 {
@@ -28,6 +29,11 @@ ACombatMeleeEnemy::ACombatMeleeEnemy()
 void ACombatMeleeEnemy::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	if (nullptr != HealthComponent)
+	{
+		HealthComponent->OnDamaged.AddDynamic(this, &ACombatMeleeEnemy::HandleDamaged);
+	}
 	
 	CachePlayerPawn();
 	SetMeleeEnemyState(EMeleeEnemyState::Idle);
@@ -124,6 +130,7 @@ void ACombatMeleeEnemy::ApplyDeathState()
 	
 	StopChaseMovement();
 	
+	CurrentHitReactionMontage = nullptr;
 	bHitReacting = false;
 	
 	SetMeleeEnemyState(EMeleeEnemyState::Dead);
@@ -134,16 +141,6 @@ void ACombatMeleeEnemy::ApplyDeathState()
 void ACombatMeleeEnemy::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
 {
 	Super::HandleHealthChanged(CurrentHealth, MaxHealth, Delta);
-	
-	if (0.0f >= CurrentHealth)
-	{
-		return;
-	}
-	
-	if (0.0f > Delta)
-	{
-		StartHitReaction();
-	}
 }
 
 void ACombatMeleeEnemy::CachePlayerPawn()
@@ -305,7 +302,21 @@ void ACombatMeleeEnemy::TryAttackTarget()
 	}
 }
 
-void ACombatMeleeEnemy::StartHitReaction()
+void ACombatMeleeEnemy::HandleDamaged(const FCombatDamageInfo& DamageInfo)
+{
+	StopChaseMovement();
+	UCombatDamageLibrary::ApplyHitStopFromDamageInfo(DamageInfo);
+	UCombatDamageLibrary::ApplyKnockbackFromDamageInfo(DamageInfo);
+	
+	if (nullptr != HealthComponent && 0.0f >= HealthComponent->GetCurrentHealth())
+	{
+		return;
+	}
+	
+	StartHitReaction(DamageInfo);
+}
+
+void ACombatMeleeEnemy::StartHitReaction(const FCombatDamageInfo& DamageInfo)
 {
 	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
 	{
@@ -322,11 +333,14 @@ void ACombatMeleeEnemy::StartHitReaction()
 		EnemyAttackComponent->CancelAttack();
 	}
 	
-	const bool bPlayedMontage = TryPlayHitReactionMontage();
+	const bool bPlayedMontage = TryPlayHitReactionMontage(DamageInfo);
 	
 	if (true == bPlayedMontage)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s failed to start hit reaction montage."), *GetName());
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to start hit reaction montage. Strength: %s | Direction: %s"), 
+			*GetName(),
+			GetCombatHitStrengthDebugString(DamageInfo.HitStrength),
+			GetCombatHitDirectionDebugString(DamageInfo.HitDirectionType));
 		EndHitReaction();
 	}
 }
@@ -337,6 +351,8 @@ void ACombatMeleeEnemy::EndHitReaction()
 	{
 		return;
 	}
+	
+	CurrentHitReactionMontage = nullptr;
 	
 	bHitReacting = false;
 	SetMeleeEnemyState(EMeleeEnemyState::Idle);
@@ -349,10 +365,13 @@ bool ACombatMeleeEnemy::IsHitReacting() const
 	return bHitReacting;
 }
 
-bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
+bool ACombatMeleeEnemy::TryPlayHitReactionMontage(const FCombatDamageInfo& DamageInfo)
 {
+	UAnimMontage* HitReactionMontage = GetHitReactionMontageByDirection(DamageInfo.HitDirectionType);
+	
 	if (nullptr == HitReactionMontage)
 	{
+		CurrentHitReactionMontage = nullptr;
 		return false;
 	}
 	
@@ -360,6 +379,7 @@ bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
 	
 	if (nullptr == AnimInstance)
 	{
+		CurrentHitReactionMontage = nullptr;
 		return false;
 	}
 	
@@ -367,9 +387,17 @@ bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
 	
 	if (0.0f >= MontageLength)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s failed to play hit reaction montage."), *GetName());
+		CurrentHitReactionMontage = nullptr;
+		
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play hit reaction montage. Strength: %s | Direction: %s"), 
+			*GetName(),
+			GetCombatHitStrengthDebugString(DamageInfo.HitStrength),
+			GetCombatHitDirectionDebugString(DamageInfo.HitDirectionType));
+		
 		return false;
 	}
+	
+	CurrentHitReactionMontage = HitReactionMontage;
 	
 	FOnMontageEnded MontageEndedDelegate;
 	MontageEndedDelegate.BindUObject(this, &ACombatMeleeEnemy::HandleHitReactionMontageEnded);
@@ -378,12 +406,39 @@ bool ACombatMeleeEnemy::TryPlayHitReactionMontage()
 	return true;
 }
 
+UAnimMontage* ACombatMeleeEnemy::GetHitReactionMontageByDirection(ECombatHitDirection HitDirection) const
+{
+	UAnimMontage* SelectedMontage = nullptr;
+	
+	switch (HitDirection)
+	{
+	case ECombatHitDirection::Front:
+		SelectedMontage = FrontHitReactionMontage;
+		break;
+	case ECombatHitDirection::Back:
+		SelectedMontage = BackHitReactionMontage;
+		break;
+	case ECombatHitDirection::Left:
+		SelectedMontage = LeftHitReactionMontage;
+		break;
+	case ECombatHitDirection::Right:
+		SelectedMontage = RightHitReactionMontage;
+		break;
+	default:
+		break;
+	}
+	
+	return nullptr != SelectedMontage ? SelectedMontage : FrontHitReactionMontage.Get();
+}
+
 void ACombatMeleeEnemy::HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	if (Montage != HitReactionMontage)
+	if (Montage != CurrentHitReactionMontage)
 	{
 		return;
 	}
+	
+	CurrentHitReactionMontage = nullptr;
 	
 	EndHitReaction();
 }

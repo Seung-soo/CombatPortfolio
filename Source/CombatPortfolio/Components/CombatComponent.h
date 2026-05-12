@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"
+#include "CombatPortfolio/Combat/CombatDamageType.h"
 #include "CombatComponent.generated.h"
 
 class UAnimInstance;
@@ -29,6 +30,9 @@ struct FComboAttackData
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
 	FName SectionName = NAME_None;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
+	ECombatHitStrength HitStrength = ECombatHitStrength::Light;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
 	float Damage = 25.0f;
 	
@@ -40,6 +44,15 @@ struct FComboAttackData
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
 	float TraceHalfHeight = 40.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
+	float KnockbackStrength = 250.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
+	float HitStopDuration = 0.04f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+	float HitStopTimeDilation = 0.05f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
@@ -88,7 +101,7 @@ public:
 	void BeginComboInputWindow();
 	void EndComboInputWindow();
 	
-	bool RequestHitReaction();
+	bool RequestHitReaction(const FCombatDamageInfo& DamageInfo);
 	bool IsHitReacting() const;
 	
 	bool IsDeathMontageFinished() const;
@@ -145,7 +158,7 @@ private:
 	void BroadcastInvincibilityIfChanged(bool bOldInvincible);
 	
 	void PerformAttackTrace();
-	void ApplyDamageToHitActor(AActor* HitActor);
+	void ApplyDamageToHitActor(const FHitResult& HitResult);
 	bool HasAlreadyHitActor(const AActor* HitActor) const;
 	void RegisterHitActor(AActor* HitActor);
 	FVector GetAttackTraceStartLocation() const;
@@ -154,7 +167,8 @@ private:
 	bool IsDamageBlockedByInvincibility(const AActor* TargetActor) const;
 
 	void EndHitReaction();
-	bool TryPlayHitReactionMontage();
+	bool TryPlayHitReactionMontage(const FCombatDamageInfo& DamageInfo);
+	UAnimMontage* GetHitReactionMontageByDirection(ECombatHitDirection HitDirection) const;
 	void StartHitReactionInvincibility();
 	void EndHitReactionInvincibility();
 	void HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
@@ -219,7 +233,19 @@ private:
 	float HitReactionInvincibleDuration = 0.35f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> HitReactionMontage;
+	TObjectPtr<UAnimMontage> FrontHitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> BackHitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> LeftHitReactionMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> RightHitReactionMontage;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> CurrentHitReactionMontage;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
 	float HitReactionMontagePlayRate = 1.0f;

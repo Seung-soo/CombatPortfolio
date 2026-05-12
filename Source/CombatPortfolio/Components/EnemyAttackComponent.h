@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"
+#include "CombatPortfolio/Combat/CombatDamageType.h"
 #include "EnemyAttackComponent.generated.h"
 
 class UAnimMontage;
@@ -46,7 +47,7 @@ public:
 private:
 	bool TryPlayAttackMontage();
 	void PerformAttackTrace();
-	void ApplyDamageToActor(AActor* TargetActor);
+	void ApplyDamageToActor(const FHitResult& HitResult);
 	
 	bool IsDamageBlockedByInvincibility(AActor* TargetActor) const;
 	
@@ -78,6 +79,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float AttackCooldown = 1.5f;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true"))
+	ECombatHitStrength HitStrength = ECombatHitStrength::Light;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack|Animation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> AttackMontage;
 	
@@ -104,6 +108,15 @@ private:
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true"))
 	bool bHitWindowOpen = false;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float KnockbackStrength = 250.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float HitStopDuration = 0.04f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Enemy Attack", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", ClampMax = "1.0"))
+	float HitStopTimeDilation = 0.05f;
 	
 private:
 	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;

@@ -8,6 +8,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "HealthComponent.h"
+#include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -111,6 +112,7 @@ bool UCombatComponent::RequestDeath()
 	CancelCurrentActionForInterrupt();
 	
 	bDeathMontageFinished = false;
+	CurrentHitReactionMontage = nullptr;
 	
 	SetCombatActionState(ECombatActionState::Dead);
 	
@@ -233,7 +235,7 @@ void UCombatComponent::EndComboInputWindow()
 	TryCommitBufferedCombo();
 }
 
-bool UCombatComponent::RequestHitReaction()
+bool UCombatComponent::RequestHitReaction(const FCombatDamageInfo& DamageInfo)
 {
 	if (ECombatActionState::Dead == CombatActionState)
 	{
@@ -256,11 +258,15 @@ bool UCombatComponent::RequestHitReaction()
 	
 	StartHitReactionInvincibility();
 	
-	const bool bPlayedMontage = TryPlayHitReactionMontage();
+	const bool bPlayedMontage = TryPlayHitReactionMontage(DamageInfo);
 	
 	if (false == bPlayedMontage)
 	{
-		UE_LOG(LogTemp, Error, TEXT("HitReactionMontage failed. Assign AM_Player_HitReaction"));
+		UE_LOG(LogTemp, Error, TEXT("HitReactionMontage failed. Strength: %s, Direction: %s"),
+			GetCombatHitStrengthDebugString(DamageInfo.HitStrength),
+			GetCombatHitDirectionDebugString(DamageInfo.HitDirectionType));
+		
+		CurrentHitReactionMontage = nullptr;
 		EndHitReaction();
 	}
 
@@ -808,7 +814,7 @@ void UCombatComponent::PerformAttackTrace()
 			continue;
 		}
 		
-		if (HasAlreadyHitActor(HitActor))
+		if (true == HasAlreadyHitActor(HitActor))
 		{
 			continue;
 		}
@@ -817,12 +823,14 @@ void UCombatComponent::PerformAttackTrace()
 		
 		UE_LOG(LogTemp, Log, TEXT("Attack Trace Hit Actor: %s"), *HitActor->GetName());
 		
-		ApplyDamageToHitActor(HitActor);
+		ApplyDamageToHitActor(HitResult);
 	}
 }
 
-void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
+void UCombatComponent::ApplyDamageToHitActor(const FHitResult& HitResult)
 {
+	AActor* HitActor = HitResult.GetActor();
+	
 	if (nullptr == HitActor)
 	{
 		return;
@@ -849,7 +857,24 @@ void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
 		return;
 	}
 	
-	const bool bDamageApplied = HealthComponent->ApplyDamage(CurrentAttackData->Damage);
+	AActor* OwnerActor = GetOwner();
+	
+	FCombatDamageInfo DamageInfo;
+	DamageInfo.DamageAmount = CurrentAttackData->Damage;
+	DamageInfo.InstigatorActor = OwnerActor;
+	DamageInfo.DamageCauser = OwnerActor;
+	DamageInfo.HitActor = HitActor;
+	DamageInfo.HitLocation = HitResult.ImpactPoint;
+	DamageInfo.HitNormal = HitResult.ImpactNormal;
+	DamageInfo.HitDirection = nullptr != OwnerActor ? 
+	(HitActor->GetActorLocation() - OwnerActor->GetActorLocation()).GetSafeNormal() : FVector::ZeroVector;
+	DamageInfo.HitStrength = CurrentAttackData->HitStrength;
+	DamageInfo.HitDirectionType = UCombatDamageLibrary::CalculateHitDirectionFromIncomingDirection(HitActor, DamageInfo.HitDirection);
+	DamageInfo.KnockbackStrength = CurrentAttackData->KnockbackStrength;
+	DamageInfo.HitStopDuration = CurrentAttackData->HitStopDuration;
+	DamageInfo.HitStopTimeDilation = CurrentAttackData->HitStopTimeDilation;
+	
+	const bool bDamageApplied = HealthComponent->ApplyDamage(DamageInfo);
 	
 	if (false == bDamageApplied)
 	{
@@ -858,7 +883,7 @@ void UCombatComponent::ApplyDamageToHitActor(AActor* HitActor)
 	}
 	
 	UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s. Current HP: %.1f, / %.1f"), 
-		CurrentAttackData->Damage, *HitActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
+		DamageInfo.DamageAmount, *HitActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
 }
 
 bool UCombatComponent::HasAlreadyHitActor(const AActor* HitActor) const
@@ -957,15 +982,20 @@ void UCombatComponent::EndHitReaction()
 		return;
 	}
 	
+	CurrentHitReactionMontage = nullptr;
+	
 	SetCombatActionState(ECombatActionState::Idle);
 	
 	UE_LOG(LogTemp, Log, TEXT("Player hit reaction ended."));
 }
 
-bool UCombatComponent::TryPlayHitReactionMontage()
+bool UCombatComponent::TryPlayHitReactionMontage(const FCombatDamageInfo& DamageInfo)
 {
+	UAnimMontage* HitReactionMontage = GetHitReactionMontageByDirection(DamageInfo.HitDirectionType);
+	
 	if (nullptr == HitReactionMontage)
 	{
+		CurrentHitReactionMontage = nullptr;
 		return false;
 	}
 	
@@ -973,6 +1003,7 @@ bool UCombatComponent::TryPlayHitReactionMontage()
 	
 	if (nullptr == AnimInstance)
 	{
+		CurrentHitReactionMontage = nullptr;
 		return false;
 	}
 	
@@ -980,15 +1011,45 @@ bool UCombatComponent::TryPlayHitReactionMontage()
 	
 	if (0.0f >= MontageLength)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("HitReactionMontage failed to play."));
+		CurrentHitReactionMontage = nullptr;
+		UE_LOG(LogTemp, Warning, TEXT("HitReactionMontage failed to play. Direction: %s"),
+			GetCombatHitStrengthDebugString(DamageInfo.HitStrength));
+		
 		return false;
 	}
+	
+	CurrentHitReactionMontage = HitReactionMontage;
 	
 	FOnMontageEnded MontageEndedDelegate;
 	MontageEndedDelegate.BindUObject(this, &UCombatComponent::HandleHitReactionMontageEnded);
 	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, HitReactionMontage);
 	
 	return true;
+}
+
+UAnimMontage* UCombatComponent::GetHitReactionMontageByDirection(ECombatHitDirection HitDirection) const
+{
+	UAnimMontage* SelectedMontage = nullptr;
+	
+	switch (HitDirection)
+	{
+	case ECombatHitDirection::Front:
+		SelectedMontage = FrontHitReactionMontage;
+		break;
+	case ECombatHitDirection::Back:
+		SelectedMontage = BackHitReactionMontage;
+		break;
+	case ECombatHitDirection::Left:
+		SelectedMontage = LeftHitReactionMontage;
+		break;
+	case ECombatHitDirection::Right:
+		SelectedMontage = RightHitReactionMontage;
+		break;
+	default:
+		break;
+	}
+	
+	return nullptr != SelectedMontage ? SelectedMontage : FrontHitReactionMontage.Get();
 }
 
 void UCombatComponent::StartHitReactionInvincibility()
@@ -1026,10 +1087,12 @@ void UCombatComponent::EndHitReactionInvincibility()
 
 void UCombatComponent::HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	if (Montage != HitReactionMontage)
+	if (Montage != CurrentHitReactionMontage)
 	{
 		return;
 	}
+	
+	CurrentHitReactionMontage = nullptr;
 	
 	EndHitReaction();
 }
@@ -1101,6 +1164,7 @@ void UCombatComponent::CancelCurrentActionForInterrupt()
 		SetDodgeInvincible(false);
 		break;
 	case ECombatActionState::HitReaction:
+		CurrentHitReactionMontage = nullptr;
 		SetHitReactionInvincible(false);
 		break;
 	case ECombatActionState::Idle:

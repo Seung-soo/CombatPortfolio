@@ -7,6 +7,7 @@
 #include "CombatPortfolio/Components/EnemyAttackComponent.h"
 #include "CombatPortfolio/Components/EnemyHealthBarComponent.h"
 #include "CombatPortfolio/Components/HealthComponent.h"
+#include "CombatPortfolio/Components/HitStopComponent.h"
 #include "CombatPortfolio/Components/LockOnMarkerComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -40,6 +41,8 @@ ACombatEnemyBase::ACombatEnemyBase()
 	
 	EnemyHealthBarComponent = CreateDefaultSubobject<UEnemyHealthBarComponent>(TEXT("EnemyHealthBarComponent"));
 	EnemyHealthBarComponent->SetupAttachment(GetCapsuleComponent());
+	
+	HitStopComponent = CreateDefaultSubobject<UHitStopComponent>(TEXT("HitStopComponent"));
 	
 	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
 	

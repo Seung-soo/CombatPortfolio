@@ -4,11 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "CombatPortfolio/Combat/CombatDamageType.h"
 #include "HealthComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnHealthChangedSignature, 
 	float, CurrentHealth, float, MaxHealth, float, Delta);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDamagedSignature, const FCombatDamageInfo&, DamageInfo);
 
 UCLASS( ClassGroup=(Combat), meta=(BlueprintSpawnableComponent) )
 class COMBATPORTFOLIO_API UHealthComponent : public UActorComponent
@@ -25,6 +27,7 @@ protected:
 
 public:	
 	bool ApplyDamage(float DamageAmount);
+	bool ApplyDamage(const FCombatDamageInfo& DamageInfo);
 	
 	float GetCurrentHealth();
 	float GetMaxHealth();
@@ -39,9 +42,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Health|Event")
 	FOnDeathSignature OnDeath;
 	
+	UPROPERTY(BlueprintAssignable, Category = "Health|Event")
+	FOnDamagedSignature OnDamaged;
+	
 private:
 	void SetCurrentHealth(float NewHealth);
 	
+	void TryHandleDeath();
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = true))
 	float MaxHealth = 100.0f;

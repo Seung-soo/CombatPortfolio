@@ -1040,3 +1040,135 @@ Enemy attack state completion is changed from timer-based handling to attack mon
 - External systems should not know which invincibility type is active.
 - `IsInvincible()` is the public query point for damage blocking.
 - Death has higher priority than all invincibility states.
+
+
+## Episode 37
+
+### Goal
+
+데미지를 단순 float 값이 아니라 공격자, 피격 위치, 피격 방향, 피격 강도 등을 담을 수 있는 구조화된 DamageInfo 기반으로 확장한다.
+
+### Completed
+
+- Added `ECombatHitStrength`
+- Added `FCombatDamageInfo`
+- Added DamageInfo-based damage application to `UHealthComponent`
+- Kept legacy float-based `ApplyDamage` as a compatibility wrapper
+- Updated player attack damage application to create and pass `FCombatDamageInfo`
+- Updated enemy attack damage application to create and pass `FCombatDamageInfo`
+- Preserved existing `OnHealthChanged` and `OnDeath` flows
+- Preserved invincibility checks before applying enemy damage
+
+### Technical Notes
+
+- Damage is now represented as structured combat data.
+- `HealthComponent` remains responsible only for health changes and death events.
+- Hit reaction and animation decisions remain outside `HealthComponent`.
+- `OnHealthChanged` is intentionally kept unchanged to avoid unnecessary UI and state-flow churn.
+- DamageInfo prepares the project for directional hit reactions, knockback, super armor, and richer combat feedback.
+
+
+## Episode 38
+
+### Goal
+
+`FCombatDamageInfo`에 피격 방향 정보를 추가하고, 피격자 기준으로 Front / Back / Left / Right 방향을 계산할 수 있도록 전투 데미지 데이터를 확장한다.
+
+### Completed
+
+- Added `ECombatHitDirection`
+- Added hit direction type to `FCombatDamageInfo`
+- Added helper logic for calculating hit direction from the target actor's perspective
+- Updated player attack damage info generation with hit direction data
+- Updated enemy attack damage info generation with hit direction data
+- Added `OnDamaged` event to `UHealthComponent`
+- Preserved existing `OnHealthChanged` and `OnDeath` flows
+- Added debug logging for hit direction verification
+
+### Technical Notes
+
+- Hit direction is calculated from the victim's perspective.
+- `HitDirection` uses the attacker-to-target direction, while hit direction classification uses the direction from target to attacker.
+- Horizontal direction is preferred for combat hit classification.
+- `OnHealthChanged` remains useful for UI and health delta handling.
+- `OnDamaged` carries richer combat context for future directional hit reactions.
+
+
+## Episode 39
+
+### Goal
+
+`FCombatDamageInfo`의 hit direction data를 이용해 플레이어와 적의 방향별 HitReaction Montage를 선택하도록 확장한다.
+
+### Completed
+
+- Changed player hit reaction request to receive `FCombatDamageInfo`
+- Changed enemy hit reaction start flow to receive `FCombatDamageInfo`
+- Added directional hit reaction montages for player
+- Added directional hit reaction montages for enemy
+- Added hit reaction montage selection by `ECombatHitDirection`
+- Stored current hit reaction montage for delegate validation
+- Moved hit reaction start responsibility from `OnHealthChanged` to `OnDamaged`
+- Preserved `OnHealthChanged` for HUD and health delta handling
+- Prevented hit reaction completion from overriding death state
+
+### Technical Notes
+
+- `OnDamaged` carries combat context such as hit direction, hit strength, instigator, and hit location.
+- `OnHealthChanged` remains focused on health value changes.
+- Directional hit reaction selection belongs to the combat actor or combat component, not `HealthComponent`.
+- Directional montage null fallback is intentionally avoided; temporary asset reuse should be handled in Blueprint assignment.
+
+
+## Episode 40
+
+### Goal
+
+`FCombatDamageInfo`에 knockback data를 추가하고, 플레이어와 적이 피격 시 공격 방향에 따라 수평으로 밀리도록 기초 Hit Pushback을 구현한다.
+
+### Completed
+
+- Added knockback strength to `FCombatDamageInfo`
+- Added knockback data when creating player attack damage info
+- Added knockback data when creating enemy attack damage info
+- Applied player hit reaction knockback from `UCombatComponent`
+- Applied enemy hit reaction knockback from `ACombatMeleeEnemy`
+- Used attacker-to-target hit direction as the knockback direction
+- Removed vertical component from knockback direction
+- Kept knockback responsibility outside `UHealthComponent`
+- Preserved invincibility blocking before damage and knockback application
+
+### Technical Notes
+
+- Knockback is applied by the damaged actor's combat logic, not by the health component.
+- `HitDirection` represents the attacker-to-target direction and is suitable for pushback.
+- `HitDirectionType` represents which side of the victim was hit.
+- Basic knockback uses `LaunchCharacter` for Character-based actors.
+- Root Motion hit reactions should be reviewed before combining with code-driven knockback.
+
+
+## Episode 41
+
+### Goal
+
+공격이 실제로 적중했을 때 공격자와 피격자에게 짧은 HitStop을 적용하여 타격감을 강화한다.
+
+### Completed
+
+- Added `UHitStopComponent`
+- Added hit stop duration and time dilation values to `FCombatDamageInfo`
+- Added hit stop data when creating player attack damage info
+- Added hit stop data when creating enemy attack damage info
+- Applied hit stop to both attacker and victim after successful damage application
+- Used actor `CustomTimeDilation` for local hit stop
+- Restored original custom time dilation after hit stop ends
+- Prevented hit stop from triggering on blocked or invincible hits
+- Kept hit stop independent from combat state changes
+
+### Technical Notes
+
+- HitStop is applied only after damage is successfully applied.
+- `UHealthComponent` does not execute hit stop logic.
+- HitStop is a local actor-level effect, not a global world time effect.
+- `UHitStopComponent` does not know about combat states.
+- HitStop tuning values can later be moved into attack data assets.
