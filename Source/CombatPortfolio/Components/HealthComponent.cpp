@@ -2,19 +2,13 @@
 
 
 #include "HealthComponent.h"
+#include "CombatPortfolio/CombatPortfolio.h"
 
-// Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
-
-	// ...
 }
 
-
-// Called when the game starts
 void UHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -61,7 +55,7 @@ bool UHealthComponent::ApplyDamage(const FCombatDamageInfo& DamageInfo)
 	
 	OnDamaged.Broadcast(DamageInfo);
 	
-	UE_LOG(LogTemp, Log, TEXT("DamageInfo | Damage: %.1f | Knockback: %.1f | Instigator: %s | Target: %s | Strength: %s | Direction: %s"),
+	UE_LOG(LogCombatPortfolio, Log, TEXT("DamageInfo | Damage: %.1f | Knockback: %.1f | Instigator: %s | Target: %s | Strength: %s | Direction: %s"),
 		DamageInfo.DamageAmount,
 		DamageInfo.KnockbackStrength,
 		*GetNameSafe(DamageInfo.InstigatorActor),
@@ -114,7 +108,7 @@ void UHealthComponent::SetCurrentHealth(float NewHealth)
 	
 	OnHealthChanged.Broadcast(CurrentHealth, MaxHealth, Delta);
 	
-	UE_LOG(LogTemp, Log, TEXT("Health changed: %.1f / %.1f, Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Health changed: %.1f / %.1f, Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 }
 
 void UHealthComponent::TryHandleDeath()
@@ -134,8 +128,7 @@ void UHealthComponent::TryHandleDeath()
 	const AActor* OwnerActor = GetOwner();
 	const FString OwnerName = nullptr != OwnerActor ? OwnerActor->GetName() : TEXT("UnknownOwner");
 
-	UE_LOG(LogTemp, Log, TEXT("Owner died: %s"), *OwnerName);
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Owner died: %s"), *OwnerName);
 
 	OnDeath.Broadcast();
-\
 }

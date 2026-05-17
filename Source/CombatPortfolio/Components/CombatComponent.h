@@ -1,16 +1,16 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "TimerManager.h"
 #include "CombatPortfolio/Combat/CombatDamageType.h"
+#include "CombatPortfolio/Data/CombatAttackData.h"
 #include "CombatComponent.generated.h"
 
 class UAnimInstance;
 class UAnimMontage;
 class UHealthComponent;
+class UStaminaComponent;
 
 UENUM(BlueprintType)
 enum class ECombatActionState : uint8
@@ -20,39 +20,6 @@ enum class ECombatActionState : uint8
 	Dodging UMETA(DisplayName = "Dodging"),
 	HitReaction UMETA(DisplayName = "HitReaction"),
 	Dead UMETA(DisplayName = "Dead"),
-};
-
-USTRUCT(BlueprintType)
-struct FComboAttackData
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
-	FName SectionName = NAME_None;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo")
-	ECombatHitStrength HitStrength = ECombatHitStrength::Light;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
-	float Damage = 25.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "1.0"))
-	float TraceRadius = 80.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
-	float TraceForwardOffset = 140.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
-	float TraceHalfHeight = 40.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
-	float KnockbackStrength = 250.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.0"))
-	float HitStopDuration = 0.04f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combo", meta = (ClampMin = "0.01", ClampMax = "1.0"))
-	float HitStopTimeDilation = 0.05f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCombatActionStateChangedSignature);
@@ -66,17 +33,15 @@ class COMBATPORTFOLIO_API UCombatComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:	
-	// Sets default values for this component's properties
 	UCombatComponent();
 
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:	
-	bool RequestAttack();
+	bool RequestAttack(ECombatAttackInputType AttackInputType);
 	bool RequestDodge(const FVector& DodgeDirection);
 	bool RequestDeath();
 	
@@ -92,7 +57,7 @@ public:
 	bool HasBufferedComboInput() const;
 	int GetCurrentComboIndex() const;
 	int32 GetHitActorCountThisAttack() const;
-	float GetCurrentAttackDamage() const;
+	const FCombatAttackEntry* GetCurrentAttackEntry() const;
 	ECombatActionState GetCombatActionState() const;
 	
 	void BeginHitWindow();
@@ -120,7 +85,7 @@ public:
 	FOnInvincibilityChangedSignature OnInvincibilityChanged;
 	
 private:
-	bool StartAttack();
+	bool StartAttack(ECombatAttackInputType AttackInputType);
 	bool StartDodge(const FVector& DodgeDirection);
 	
 	bool TryPlayDodgeMontage();
@@ -132,8 +97,8 @@ private:
 	bool TryBufferComboInput();
 	bool TryCommitBufferedCombo();
 	bool CanMoveToNextCombo() const;
-	const FComboAttackData* GetCurrentComboAttackData() const;
-	const FComboAttackData* GetComboAttackDataByIndex(int32 ComboIndex) const;
+	const FCombatAttackEntry* GetCurrentComboAttackData() const;
+	const FCombatAttackEntry* GetComboAttackDataByIndex(int32 ComboIndex) const;
 	FName GetCurrentComboSectionName() const;
 	FName GetNextComboSectionName() const;
 	void ResetComboState();
@@ -180,9 +145,22 @@ private:
 	void CancelAttack();
 	void ResetAttackHitState();
 	
+	UCombatAttackData* GetAttackDataByInputType(ECombatAttackInputType AttackInputType) const;
+	UAnimMontage* GetAttackMontageByInputType(ECombatAttackInputType AttackInputType) const;
+	
+	UStaminaComponent* GetOwnerStaminaComponent() const;
+	bool CanPayAttackStaminaCost(const FCombatAttackEntry& AttackEntry) const;
+	bool TrySpendAttackStaminaCost(const FCombatAttackEntry& AttackEntry) const;
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> AttackMontage;
+	TObjectPtr<UAnimMontage> LightAttackMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> HeavyAttackMontage;
+	
+	UPROPERTY()
+	TObjectPtr<UAnimMontage> CurrentAttackMontage;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	float AttackPlayRate = 1.0f;
@@ -202,8 +180,14 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
 	float DodgeInvincibleDuration = 0.25f;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
-	TArray<FComboAttackData> ComboAttackDataList;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCombatAttackData> LightAttackData;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCombatAttackData> HeavyAttackData;
+	
+	UPROPERTY()
+	TObjectPtr<UCombatAttackData> CurrentCombatAttackData;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDrawAttackTraceDebug = true;
@@ -258,6 +242,9 @@ private:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true"))
 	bool bDeathMontageFinished = false;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
+	bool bCurrentAttackStaminaCostPaid = false;
 	
 private:
 	FTimerHandle DodgeFallbackTimerHandle;

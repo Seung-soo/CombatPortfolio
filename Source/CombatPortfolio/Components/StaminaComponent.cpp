@@ -3,14 +3,14 @@
 
 #include "StaminaComponent.h"
 
+#include "CombatPortfolio/CombatPortfolio.h"
+
 UStaminaComponent::UStaminaComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
-
-// Called when the game starts
 void UStaminaComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -23,7 +23,6 @@ void UStaminaComponent::BeginPlay()
 	SetComponentTickEnabled(false);
 }
 
-// Called every frame
 void UStaminaComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -185,13 +184,13 @@ void UStaminaComponent::SetCurrentStamina(float NewStamina)
 	
 	OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina, Delta);
 	
-	UE_LOG(LogTemp, Log, TEXT("Stamina changed: %.1f / %.1f, Delta: %.1f"), CurrentStamina, MaxStamina, Delta);
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Stamina changed: %.1f / %.1f, Delta: %.1f"), CurrentStamina, MaxStamina, Delta);
 	
 	if (0.0f >= CurrentStamina && 0.0f < OldStamina)
 	{
 		OnStaminaDepleted.Broadcast();
 		
-		UE_LOG(LogTemp, Log, TEXT("Stamina depleted"));
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Stamina depleted"));
 	}
 }
 

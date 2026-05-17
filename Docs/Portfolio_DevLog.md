@@ -1172,3 +1172,139 @@ Enemy attack state completion is changed from timer-based handling to attack mon
 - HitStop is a local actor-level effect, not a global world time effect.
 - `UHitStopComponent` does not know about combat states.
 - HitStop tuning values can later be moved into attack data assets.
+
+
+## Episode 42
+
+### Goal
+
+실제 공격 적중 시 플레이어 카메라에 짧은 Camera Shake를 적용하여 전투 타격감을 강화한다.
+
+### Completed
+
+- Added camera shake data to `FCombatDamageInfo`
+- Added camera shake settings to player attack damage info
+- Added camera shake settings to enemy attack damage info
+- Added player camera feedback function for combat hits
+- Triggered camera shake after successful player attack damage
+- Triggered camera shake after successful enemy attack damage
+- Prevented camera shake on missed attacks
+- Prevented camera shake on invincibility-blocked attacks
+- Kept camera feedback outside `UHealthComponent`
+
+### Technical Notes
+
+- Camera Shake is triggered only after valid damage is applied.
+- `UHealthComponent` remains responsible only for health and death events.
+- HitStop creates impact pause, while Camera Shake creates visual impact feedback.
+- Player camera feedback is routed through the player character and camera manager.
+- Camera shake values can later be moved into attack data assets.
+
+
+## Episode 43
+
+### Goal
+
+실제 유효 타격 시 Hit VFX와 Hit SFX를 재생하여 전투 타격 피드백을 강화한다.
+
+### Completed
+
+- Added hit impact effect data to `FCombatDamageInfo`
+- Added hit impact sound data to `FCombatDamageInfo`
+- Added player attack hit VFX/SFX settings
+- Added enemy attack hit VFX/SFX settings
+- Spawned hit VFX at `DamageInfo.HitLocation` after successful damage application
+- Played hit SFX at `DamageInfo.HitLocation` after successful damage application
+- Prevented VFX/SFX from triggering on missed attacks
+- Prevented VFX/SFX from triggering on invincibility-blocked attacks
+- Kept VFX/SFX logic outside `UHealthComponent`
+
+### Technical Notes
+
+- Hit feedback is triggered only after valid damage is applied.
+- `UHealthComponent` remains responsible only for health and death events.
+- Hit VFX uses hit location data from `FCombatDamageInfo`.
+- Hit SFX uses world-location based playback.
+- Dodge success feedback should be implemented separately from hit impact feedback.
+
+
+
+## Episode 44
+
+### Goal
+
+공격별 데미지, 몽타주, Trace, Knockback, HitStop, Camera Shake, VFX/SFX 값을 코드에서 분리하고 `UCombatAttackData` DataAsset 기반으로 관리한다.
+
+### Completed
+
+- Added `UCombatAttackData`
+- Moved attack montage data into attack data assets
+- Moved damage values into attack data assets
+- Moved hit strength and knockback values into attack data assets
+- Moved trace radius and trace distance into attack data assets
+- Moved hit stop values into attack data assets
+- Moved camera shake values into attack data assets
+- Moved hit VFX/SFX values into attack data assets
+- Updated player combo attacks to use a data asset list
+- Updated enemy melee attack to use an attack data asset
+- Generated `FCombatDamageInfo` from attack data
+- Preserved existing combat flow while moving data out of code
+
+### Technical Notes
+
+- `UCombatAttackData` stores attack configuration but does not execute attacks.
+- `FCombatDamageInfo` is generated from selected attack data at hit time.
+- Player combo attacks are now easier to tune per combo step.
+- Enemy attacks can reuse the same attack data structure.
+- This structure prepares the project for strong attacks, enemy variants, and boss pattern data.
+
+
+## Episode 45
+
+### Goal
+
+공격 시작 시 플레이어가 의도한 방향을 바라보도록 회전 보정을 추가하여 공격 Trace 방향과 캐릭터 방향을 안정화한다.
+
+### Completed
+
+- Added attack direction decision logic
+- Prioritized lock-on target direction for locked-on attacks
+- Used movement input direction for free movement attacks
+- Used camera forward direction as fallback when no movement input exists
+- Rotated player immediately toward attack direction before starting attack
+- Kept attack trace aligned with character forward direction
+- Preserved existing dodge and lock-on movement behavior
+
+### Technical Notes
+
+- Attack facing correction is applied only at attack start.
+- Lock-on attacks face the current lock-on target.
+- Non-lock-on attacks use movement input or camera forward direction.
+- Attack trace should remain consistent with the character's forward vector.
+
+
+## Episode 46
+
+### Goal
+
+일반 콤보 공격과 구분되는 강공격을 추가하고, 기존 DataAsset 기반 전투 피드백 시스템을 활용해 더 강한 데미지와 타격감을 제공한다.
+
+### Completed
+
+- Added Heavy Attack input action
+- Added Heavy Attack input binding
+- Added heavy attack data asset
+- Added heavy attack request flow to `UCombatComponent`
+- Separated heavy attack from light combo chain
+- Used `UCombatAttackData` for heavy attack montage and combat values
+- Applied stamina cost before starting heavy attack
+- Generated `FCombatDamageInfo` from heavy attack data
+- Applied stronger damage, knockback, hit stop, camera shake, and hit feedback for heavy attack
+- Reused existing attack cancel flow for hit reaction and death interruption
+
+### Technical Notes
+
+- Heavy attack shares the `Attacking` state but uses separate attack data.
+- Heavy attack is not part of the light combo chain.
+- Heavy attack does not use combo input window.
+- Data-driven attack configuration allows light and heavy attacks to share execution code while using different combat values.

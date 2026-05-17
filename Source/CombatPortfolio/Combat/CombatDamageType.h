@@ -5,6 +5,10 @@
 #include "CoreMinimal.h"
 #include "CombatDamageType.generated.h"
 
+class UCameraShakeBase;
+class UNiagaraSystem;
+class USoundBase;
+
 UENUM(BlueprintType)
 enum class ECombatHitStrength : uint8
 {
@@ -50,39 +54,60 @@ struct FCombatDamageInfo
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
 	float DamageAmount = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	TObjectPtr<AActor> InstigatorActor = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	TObjectPtr<AActor> DamageCauser = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	TObjectPtr<AActor> HitActor = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	FVector HitLocation = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	FVector HitNormal = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	FVector HitDirection = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	ECombatHitStrength HitStrength = ECombatHitStrength::Light;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage")
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage")
 	ECombatHitDirection HitDirectionType = ECombatHitDirection::Front;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
 	float KnockbackStrength = 0.0f;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
 	float HitStopDuration = 0.04f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.01", ClampMax = "1.0"))
 	float HitStopTimeDilation = 0.05f;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Camera")
+	TSubclassOf<UCameraShakeBase> CameraShakeClass;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Camera", meta = (ClampMin = "0.0"))
+	float CameraShakeScale = 1.0f;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Feedback")
+	TObjectPtr<UNiagaraSystem> HitVFX = nullptr;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Feedback")
+	TObjectPtr<USoundBase> HitSFX = nullptr;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Feedback", meta = (ClampMin = "0.0"))
+	float HitVFXScale = 1.0f;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Feedback", meta = (ClampMin = "0.0"))
+	float HitSFXVolumeMultiplier = 1.0f;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Combat|Feedback", meta = (ClampMin = "0.0"))
+	float HitSFXPitchMultiplier = 1.0f;
 };

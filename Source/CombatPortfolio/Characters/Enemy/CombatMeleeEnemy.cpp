@@ -305,8 +305,7 @@ void ACombatMeleeEnemy::TryAttackTarget()
 void ACombatMeleeEnemy::HandleDamaged(const FCombatDamageInfo& DamageInfo)
 {
 	StopChaseMovement();
-	UCombatDamageLibrary::ApplyHitStopFromDamageInfo(DamageInfo);
-	UCombatDamageLibrary::ApplyKnockbackFromDamageInfo(DamageInfo);
+	UCombatDamageLibrary::ApplyDamageFeedbackFromDamageInfo(DamageInfo);
 	
 	if (nullptr != HealthComponent && 0.0f >= HealthComponent->GetCurrentHealth())
 	{
@@ -335,7 +334,7 @@ void ACombatMeleeEnemy::StartHitReaction(const FCombatDamageInfo& DamageInfo)
 	
 	const bool bPlayedMontage = TryPlayHitReactionMontage(DamageInfo);
 	
-	if (true == bPlayedMontage)
+	if (false == bPlayedMontage)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s failed to start hit reaction montage. Strength: %s | Direction: %s"), 
 			*GetName(),

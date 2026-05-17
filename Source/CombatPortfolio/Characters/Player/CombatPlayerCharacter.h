@@ -93,7 +93,10 @@ private:
 	TObjectPtr<UInputAction> ToggleRotationModeAction;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> AttackAction;
+	TObjectPtr<UInputAction> LightAttackAction;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> HeavyAttackAction;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> DodgeAction;
@@ -191,6 +194,7 @@ private:
 	
 	void Attack();
 	void Dodge();
+	void HeavyAttack();
 	
 	bool IsCombatAttacking() const;
 	bool IsCombatDodging() const;
@@ -198,6 +202,12 @@ private:
 	void ToggleLockOn();
 	void UpdateLockOnRotation(float DeltaSeconds);
 	bool IsLockedOn() const;
+	
+	FVector GetAttackDirection() const;
+	FVector GetLockOnAttackDirection() const;
+	FVector GetMovementInputAttackDirection() const;
+	FVector GetCameraForwardAttackDirection() const;
+	void FaceAttackDirection(const FVector& AttackDirection);
 	
 	void UpdateCharacterTickEnabled();
 	

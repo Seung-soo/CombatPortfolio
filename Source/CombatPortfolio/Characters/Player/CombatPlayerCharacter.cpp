@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "CombatPlayerCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -13,14 +10,13 @@
 #include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/LockOnComponent.h"
 #include "DrawDebugHelpers.h"
+#include "CombatPortfolio/CombatPortfolio.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "CombatPortfolio/Components/HitStopComponent.h"
 #include "CombatPortfolio/UI/PlayerHUDWidget.h"
 
-// Sets default values
 ACombatPlayerCharacter::ACombatPlayerCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
@@ -80,7 +76,6 @@ void ACombatPlayerCharacter::DebugApplyDamageToPlayer(float DamageAmount)
 	HealthComponent->ApplyDamage(DamageAmount);
 }
 
-// Called when the game starts or when spawned
 void ACombatPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -170,9 +165,9 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 		EnhancedInputComponent->BindAction(ToggleRotationModeAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::ToggleRotationMode);
 	}
 	
-	if (nullptr != AttackAction)
+	if (nullptr != LightAttackAction)
 	{
-		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Attack);
+		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Attack);
 	}
 	
 	if (nullptr != DodgeAction)
@@ -183,6 +178,11 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 	if (nullptr != LockOnAction)
 	{
 		EnhancedInputComponent->BindAction(LockOnAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::ToggleLockOn);
+	}
+	
+	if (nullptr != HeavyAttackAction)
+	{
+		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::HeavyAttack);
 	}
 }
 
@@ -411,7 +411,13 @@ void ACombatPlayerCharacter::Attack()
 		return;
 	}
 	
-	const bool bAttackStarted = CombatComponent->RequestAttack();
+	if (true == CombatComponent->CanStartAttack())
+	{
+		const FVector AttackDirection = GetAttackDirection();
+		FaceAttackDirection(AttackDirection);
+	}
+	
+	const bool bAttackStarted = CombatComponent->RequestAttack(ECombatAttackInputType::Light);
 	
 	if (false == bAttackStarted)
 	{
@@ -464,6 +470,37 @@ void ACombatPlayerCharacter::Dodge()
 	const bool bDodgeStarted = CombatComponent->RequestDodge(DodgeDirection);
 	
 	if (false == bDodgeStarted)
+	{
+		return;
+	}
+	
+	bWantsToSprint = false;
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
+void ACombatPlayerCharacter::HeavyAttack()
+{
+	if (nullptr == CombatComponent)
+	{
+		return;
+	}
+	
+	if (true == CombatComponent->IsDead())
+	{
+		return;
+	}
+	
+	if (true == CombatComponent->CanStartAttack())
+	{
+		const FVector AttackDirection = GetAttackDirection();
+		FaceAttackDirection(AttackDirection);
+	}
+	
+	const bool bAttackStarted = CombatComponent->RequestAttack(ECombatAttackInputType::Heavy);
+	
+	if (false == bAttackStarted)
 	{
 		return;
 	}
@@ -532,6 +569,89 @@ bool ACombatPlayerCharacter::IsLockedOn() const
 	return nullptr != LockOnComponent && true == LockOnComponent->IsLockedOn();
 }
 
+FVector ACombatPlayerCharacter::GetAttackDirection() const
+{
+	if (true == IsLockedOn())
+	{
+		const FVector LockOnDirection = GetLockOnAttackDirection();
+		
+		if (false == LockOnDirection.IsNearlyZero())
+		{
+			return LockOnDirection;
+		}
+	}
+	
+	const FVector MovementInputDirection = GetMovementInputAttackDirection();
+	
+	if (false == MovementInputDirection.IsNearlyZero())
+	{
+		return MovementInputDirection;
+	}
+	
+	const FVector CameraForwardDirection = GetCameraForwardAttackDirection();
+	
+	if (false == CameraForwardDirection.IsNearlyZero())
+	{
+		return CameraForwardDirection;
+	}
+	
+	return GetActorForwardVector().GetSafeNormal2D();
+}
+
+FVector ACombatPlayerCharacter::GetLockOnAttackDirection() const
+{
+	return GetPlanarDirectionToLockOnTarget();
+}
+
+FVector ACombatPlayerCharacter::GetMovementInputAttackDirection() const
+{
+	if (true == LastMovementInputVector.IsNearlyZero())
+	{
+		return FVector::ZeroVector;
+	}
+	
+	if (nullptr == Controller)
+	{
+		return FVector::ZeroVector;
+	}
+	
+	const FRotator ControlRotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+	
+	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+	
+	const FVector AttackDirection = ForwardDirection * LastMovementInputVector.Y + RightDirection * LastMovementInputVector.X;
+	
+	return AttackDirection.GetSafeNormal2D();
+}
+
+FVector ACombatPlayerCharacter::GetCameraForwardAttackDirection() const
+{
+	if (nullptr == Controller)
+	{
+		return FVector::ZeroVector;
+	}
+	
+	const FRotator ControlRotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+	
+	return FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X).GetSafeNormal2D();
+}
+
+void ACombatPlayerCharacter::FaceAttackDirection(const FVector& AttackDirection)
+{
+	const FVector PlanarDirection = AttackDirection.GetSafeNormal2D();
+	
+	if (true == PlanarDirection.IsNearlyZero())
+	{
+		return;
+	}
+	
+	const FRotator TargetRotation = PlanarDirection.Rotation();
+	SetActorRotation(FRotator(0.0f, TargetRotation.Yaw, 0.0f));
+}
+
 void ACombatPlayerCharacter::UpdateCharacterTickEnabled()
 {
 	const bool bShouldTick = true == bShowMovementDebug || true == IsLockedOn();
@@ -543,7 +663,7 @@ void ACombatPlayerCharacter::CreatePlayerHUD()
 {
 	if (nullptr == PlayerHUDWidgetClass)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("PlayerHUDWidgetClass is not assigned."));
+		UE_LOG(LogCombatPortfolio, Warning, TEXT("PlayerHUDWidgetClass is not assigned."));
 		return;
 	}
 	
@@ -721,7 +841,7 @@ void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxH
 		PlayerHUDWidget->SetHealth(CurrentHealth, MaxHealth);
 	}
 	
-	UE_LOG(LogTemp, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 	
 	if (0.0f > Delta && nullptr != GEngine)
 	{
@@ -733,9 +853,7 @@ void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxH
 
 void ACombatPlayerCharacter::HandleDamaged(const FCombatDamageInfo& DamageInfo)
 {
-	UCombatDamageLibrary::ApplyHitStopFromDamageInfo(DamageInfo);
-	
-	UCombatDamageLibrary::ApplyKnockbackFromDamageInfo(DamageInfo);
+	UCombatDamageLibrary::ApplyDamageFeedbackFromDamageInfo(DamageInfo);
 	
 	if (nullptr != HealthComponent && 0.0f >= HealthComponent->GetCurrentHealth())
 	{
@@ -774,8 +892,6 @@ void ACombatPlayerCharacter::HandleDeath()
 	{
 		LockOnComponent->ClearLockOnTarget();
 	}
-	
-	//DisableInput(nullptr);
 	
 	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
 	
@@ -876,8 +992,19 @@ FString ACombatPlayerCharacter::GetComboDebugString() const
 	
 	const FString BufferedState = true == CombatComponent->HasBufferedComboInput() ? TEXT("Buffered") : TEXT("None");
 	
-	return FString::Printf(TEXT("%d | Damage: %.1f | Window: %s | Buffer: %s"), 
-		DisplayComboIndex, CombatComponent->GetCurrentAttackDamage(), *WindowState, *BufferedState);
+	const FCombatAttackEntry* CurrentAttackEntry = CombatComponent->GetCurrentAttackEntry();
+	
+	const float Damage = nullptr != CurrentAttackEntry ? CurrentAttackEntry->Damage : 0.0f;
+	const float Knockback = nullptr != CurrentAttackEntry ? CurrentAttackEntry->KnockbackStrength : 0.0f;
+	const FString Strength = nullptr != CurrentAttackEntry ? GetCombatHitStrengthDebugString(CurrentAttackEntry->HitStrength) : TEXT("None");
+	
+	return FString::Printf(TEXT("%d | Damage: %.1f | Knockback: %.1f | Strength: %s | Window: %s | Buffer: %s"), 
+		DisplayComboIndex, 
+		Damage,
+		Knockback,
+		*Strength, 
+		*WindowState, 
+		*BufferedState);
 }
 
 int32 ACombatPlayerCharacter::GetHitActorCountDebug() const

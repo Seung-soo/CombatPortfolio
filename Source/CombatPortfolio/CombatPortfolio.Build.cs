@@ -17,7 +17,8 @@ public class CombatPortfolio : ModuleRules
 			"EnhancedInput", 
 			"UMG",
 			"AIModule",
-			"NavigationSystem"
+			"NavigationSystem",
+			"Niagara"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });

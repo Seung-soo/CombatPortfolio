@@ -27,4 +27,15 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
 	static void ApplyHitStopFromDamageInfo(const FCombatDamageInfo& DamageInfo);
+	
+	UFUNCTION(BlueprintCallable, Category = "Combat|Camera")
+	static bool PlayCameraShakeFromDamageInfo(const FCombatDamageInfo& DamageInfo);
+	
+	UFUNCTION(BlueprintCallable, Category = "Combat|Feedback")
+	static void PlayHitFeedbackFromDamageInfo(const FCombatDamageInfo& DamageInfo);
+	
+	
+public:
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	static void ApplyDamageFeedbackFromDamageInfo(const FCombatDamageInfo& DamageInfo);
 };

@@ -2,22 +2,20 @@
 
 
 #include "EnemyAttackComponent.h"
-
 #include "CombatComponent.h"
 #include "HealthComponent.h"
 #include "Animation/AnimMontage.h"
+#include "CombatPortfolio/CombatPortfolio.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "GameFramework/Character.h"
+#include "CombatPortfolio/Data/CombatAttackData.h"
 
-// Sets default values for this component's properties
 UEnemyAttackComponent::UEnemyAttackComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
-
-// Called when the game starts
 void UEnemyAttackComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -31,6 +29,13 @@ void UEnemyAttackComponent::BeginPlay()
 void UEnemyAttackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopAutoAttack();
+	
+	UWorld* World = GetWorld();
+
+	if (World != nullptr)
+	{
+		World->GetTimerManager().ClearTimer(AttackCooldownTimerHandle);
+	}
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -62,7 +67,7 @@ void UEnemyAttackComponent::StartAutoAttack()
 	World->GetTimerManager().SetTimer(
 		AutoAttackTimerHandle,
 		this,
-		&UEnemyAttackComponent::AttackOnce,
+		&UEnemyAttackComponent::RequestAutoAttack,
 		AttackInterval,
 		true
 	);
@@ -80,15 +85,9 @@ void UEnemyAttackComponent::StopAutoAttack()
 	World->GetTimerManager().ClearTimer(AutoAttackTimerHandle);
 }
 
-void UEnemyAttackComponent::AttackOnce()
+void UEnemyAttackComponent::RequestAutoAttack()
 {
-	ResetHitActors();
-	
-	OpenAttackHitWindow();
-	PerformAttackTrace();
-	CloseAttackHitWindow();
-	
-	EndAttack();
+	RequestAttack();
 }
 
 bool UEnemyAttackComponent::RequestAttack()
@@ -98,18 +97,23 @@ bool UEnemyAttackComponent::RequestAttack()
 		return false;
 	}
 	
+	if (nullptr == GetAttackEntry())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Enemy attack failed: AttackData is not assigned or empty."));
+		return false;
+	}
+	
 	ResetHitActors();
 	
 	const bool bMontageStarted = TryPlayAttackMontage();
 	
-	if (true == bMontageStarted)
+	if (false == bMontageStarted)
 	{
-		bAttacking = true;
-		BeginAttackCooldown();
-		return true;
+		UE_LOG(LogCombatPortfolio, Warning, TEXT("Enemy attack failed: AttackMontage is not assigned or failed to play."));
+		return false;
 	}
 	
-	AttackOnce();
+	bAttacking = true;
 	BeginAttackCooldown();
 	
 	return true;
@@ -150,7 +154,7 @@ void UEnemyAttackComponent::OpenAttackHitWindow()
 	bHitWindowOpen = true;
 	SetComponentTickByHitWindow();
 	
-	UE_LOG(LogTemp, Log, TEXT("Enemy Attack hit window opened."));
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy Attack hit window opened."));
 }
 
 void UEnemyAttackComponent::CloseAttackHitWindow()
@@ -158,7 +162,7 @@ void UEnemyAttackComponent::CloseAttackHitWindow()
 	bHitWindowOpen = false;
 	SetComponentTickByHitWindow();
 	
-	UE_LOG(LogTemp, Log, TEXT("Enemy attack hit window closed."));
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy attack hit window closed."));
 }
 
 void UEnemyAttackComponent::EndAttack()
@@ -228,7 +232,7 @@ bool UEnemyAttackComponent::TryPlayAttackMontage()
 	
 	if (0.0f >= MontageLength)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s failed to play enemy attack montage."), *OwnerCharacter->GetName());
+		UE_LOG(LogCombatPortfolio, Warning, TEXT("%s failed to play enemy attack montage."), *OwnerCharacter->GetName());
 		return false;
 	}
 	
@@ -236,7 +240,7 @@ bool UEnemyAttackComponent::TryPlayAttackMontage()
 	MontageEndedDelegate.BindUObject(this, &UEnemyAttackComponent::HandleAttackMontageEnded);
 	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, AttackMontage);
 	
-	UE_LOG(LogTemp, Log, TEXT("%s played enemy attack montage. Length: %.2f"), *OwnerCharacter->GetName(), MontageLength);
+	UE_LOG(LogCombatPortfolio, Log, TEXT("%s played enemy attack montage. Length: %.2f"), *OwnerCharacter->GetName(), MontageLength);
 	
 	return true;
 }
@@ -265,13 +269,20 @@ void UEnemyAttackComponent::PerformAttackTrace()
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(OwnerActor);
 	
+	const FCombatAttackEntry* AttackEntry = GetAttackEntry();
+	
+	if (nullptr == AttackEntry)
+	{
+		return;
+	}
+	
 	const bool bHit = World->SweepMultiByChannel(
 		HitResults,
 		StartLocation,
 		EndLocation,
 		FQuat::Identity,
 		ECC_Pawn,
-		FCollisionShape::MakeSphere(AttackTraceRadius),
+		FCollisionShape::MakeSphere(AttackEntry->TraceRadius),
 		QueryParams
 	);
 	
@@ -280,13 +291,13 @@ void UEnemyAttackComponent::PerformAttackTrace()
 		const FColor DebugColor = true == bHit ? FColor::Red : FColor::Blue;
 		
 		const FVector Center = (StartLocation + EndLocation) * 0.5f;
-		const float CapsuleHalfHeight = (EndLocation - StartLocation).Size() * 0.5f + AttackTraceRadius;
+		const float CapsuleHalfHeight = (EndLocation - StartLocation).Size() * 0.5f + AttackEntry->TraceRadius;
 		
 		DrawDebugCapsule(
 			World,
 			Center,
 			CapsuleHalfHeight,
-			AttackTraceRadius,
+			AttackEntry->TraceRadius,
 			FQuat::Identity,
 			DebugColor,
 			false,
@@ -324,9 +335,9 @@ void UEnemyAttackComponent::PerformAttackTrace()
 		{
 			AddHitActor(HitActor);
 			
-			UE_LOG(LogTemp, Log, TEXT("Enemy damage blocked by invincibility: %s"), *HitActor->GetName());
+			UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy damage blocked by invincibility: %s"), *HitActor->GetName());
 			
-			if (nullptr != GEngine)
+			if (true == bDrawAttackDebug && nullptr != GEngine)
 			{
 				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Enemy Attack Blocked by IFrame"));
 			}
@@ -357,7 +368,7 @@ void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 	
 	if (nullptr == HealthComponent)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Enemy hit actor has no HealthComponent: %s"), *TargetActor->GetName());
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy hit actor has no HealthComponent: %s"), *TargetActor->GetName());
 		return;
 	}
 	
@@ -366,10 +377,17 @@ void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 		return;
 	}
 	
+	const FCombatAttackEntry* AttackEntry = GetAttackEntry();
+	
+	if (nullptr == AttackEntry)
+	{
+		return;
+	}
+	
 	AActor* OwnerActor = GetOwner();
 	
 	FCombatDamageInfo DamageInfo;
-	DamageInfo.DamageAmount = AttackDamage;
+	DamageInfo.DamageAmount = AttackEntry->Damage;
 	DamageInfo.InstigatorActor = OwnerActor;
 	DamageInfo.DamageCauser = OwnerActor;
 	DamageInfo.HitActor = TargetActor;
@@ -377,21 +395,28 @@ void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 	DamageInfo.HitNormal = HitResult.ImpactNormal;
 	DamageInfo.HitDirection = nullptr != OwnerActor ? 
 		(TargetActor->GetActorLocation() - OwnerActor->GetActorLocation()).GetSafeNormal() : FVector::ZeroVector;
-	DamageInfo.HitStrength = HitStrength;
+	DamageInfo.HitStrength = AttackEntry->HitStrength;
 	DamageInfo.HitDirectionType = UCombatDamageLibrary::CalculateHitDirectionFromIncomingDirection(TargetActor, DamageInfo.HitDirection);
-	DamageInfo.KnockbackStrength = KnockbackStrength;
-	DamageInfo.HitStopDuration = HitStopDuration;
-	DamageInfo.HitStopTimeDilation = HitStopTimeDilation;
+	DamageInfo.KnockbackStrength = AttackEntry->KnockbackStrength;
+	DamageInfo.HitStopDuration = AttackEntry->HitStopDuration;
+	DamageInfo.HitStopTimeDilation = AttackEntry->HitStopTimeDilation;
+	DamageInfo.CameraShakeClass = AttackEntry->HitCameraShakeClass;
+	DamageInfo.CameraShakeScale = AttackEntry->HitCameraShakeScale;
+	DamageInfo.HitVFX = AttackEntry->HitVFX;
+	DamageInfo.HitSFX = AttackEntry->HitSFX;
+	DamageInfo.HitVFXScale = AttackEntry->HitVFXScale;
+	DamageInfo.HitSFXVolumeMultiplier = AttackEntry->HitSFXVolumeMultiplier;
+	DamageInfo.HitSFXPitchMultiplier = AttackEntry->HitSFXPitchMultiplier;
 	
 	const bool bDamageApplied = HealthComponent->ApplyDamage(DamageInfo);
 	
 	if (false == bDamageApplied)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Enemy damage was not applied to: %s"), *TargetActor->GetName());
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy damage was not applied to: %s"), *TargetActor->GetName());
 		return;
 	}
 	
-	UE_LOG(LogTemp, Log, TEXT("Enemy applied %.1f damage to %s. HP: %.1f / %.1f"), DamageInfo.DamageAmount, *TargetActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy applied %.1f damage to %s. HP: %.1f / %.1f"), DamageInfo.DamageAmount, *TargetActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
 }
 
 bool UEnemyAttackComponent::IsDamageBlockedByInvincibility(AActor* TargetActor) const
@@ -453,10 +478,17 @@ FVector UEnemyAttackComponent::GetAttackTraceStartLocation() const
 		return FVector::ZeroVector;
 	}
 	
+	const FCombatAttackEntry* AttackEntry = GetAttackEntry();
+	
+	if (nullptr == AttackEntry)
+	{
+		return FVector::ZeroVector;
+	}
+	
 	const FVector OwnerLocation = OwnerActor->GetActorLocation();
 	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
 	
-	return OwnerLocation + ForwardVector * AttackTraceForwardOffset - FVector(0.0f, 0.0f, AttackTraceHalfHeight);
+	return OwnerLocation + ForwardVector * AttackEntry->TraceForwardOffset - FVector(0.0f, 0.0f, AttackEntry->TraceHalfHeight);
 }
 
 FVector UEnemyAttackComponent::GetAttackTraceEndLocation() const
@@ -468,10 +500,17 @@ FVector UEnemyAttackComponent::GetAttackTraceEndLocation() const
 		return FVector::ZeroVector;
 	}
 	
+	const FCombatAttackEntry* AttackEntry = GetAttackEntry();
+	
+	if (nullptr == AttackEntry)
+	{
+		return FVector::ZeroVector;
+	}
+	
 	const FVector OwnerLocation = OwnerActor->GetActorLocation();
 	const FVector ForwardVector = OwnerActor->GetActorForwardVector();
 	
-	return OwnerLocation + ForwardVector * AttackTraceForwardOffset + FVector(0.0f, 0.0f, AttackTraceHalfHeight);
+	return OwnerLocation + ForwardVector * AttackEntry->TraceForwardOffset + FVector(0.0f, 0.0f, AttackEntry->TraceHalfHeight);
 }
 
 void UEnemyAttackComponent::BeginAttackCooldown()
@@ -519,4 +558,19 @@ void UEnemyAttackComponent::HandleAttackMontageEnded(UAnimMontage* Montage, bool
 	}
 	
 	EndAttack();
+}
+
+const FCombatAttackEntry* UEnemyAttackComponent::GetAttackEntry() const
+{
+	if (nullptr == AttackData)
+	{
+		return nullptr;
+	}
+	
+	if (false == AttackData->Attacks.IsValidIndex(0))
+	{
+		return nullptr;
+	}
+	
+	return &AttackData->Attacks[0];
 }
