@@ -6,6 +6,7 @@
 #include "HealthComponent.h"
 #include "Animation/AnimMontage.h"
 #include "CombatPortfolio/CombatPortfolio.h"
+#include "CombatPortfolio/Characters/Enemy/CombatMeleeEnemy.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "GameFramework/Character.h"
 #include "CombatPortfolio/Data/CombatAttackData.h"
@@ -407,6 +408,25 @@ void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 	DamageInfo.HitVFXScale = AttackEntry->HitVFXScale;
 	DamageInfo.HitSFXVolumeMultiplier = AttackEntry->HitSFXVolumeMultiplier;
 	DamageInfo.HitSFXPitchMultiplier = AttackEntry->HitSFXPitchMultiplier;
+	
+	UCombatComponent* TargetCombatComponent = TargetActor->FindComponentByClass<UCombatComponent>();
+	
+	if (nullptr != TargetCombatComponent)
+	{
+		if (true == TargetCombatComponent->TryParryIncomingDamage(DamageInfo))
+		{
+			UE_LOG(LogCombatPortfolio, Log, TEXT("Attack parried by %s"), *TargetActor->GetName());
+			
+			ACombatMeleeEnemy* OwnerEnemy = Cast<ACombatMeleeEnemy>(OwnerActor);
+			
+			if (nullptr != OwnerEnemy)
+			{
+				OwnerEnemy->RequestParriedReaction();
+			}
+			
+			return;
+		}
+	}
 	
 	const bool bDamageApplied = HealthComponent->ApplyDamage(DamageInfo);
 	

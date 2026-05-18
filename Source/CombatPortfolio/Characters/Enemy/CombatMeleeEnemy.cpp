@@ -57,6 +57,13 @@ void ACombatMeleeEnemy::Tick(float DeltaTime)
 		return;
 	}
 	
+	if (true == IsParriedReacting())
+	{
+		SetMeleeEnemyState(EMeleeEnemyState::Parried);
+		StopChaseMovement();
+		return;
+	}
+	
 	if (true == IsHitReacting())
 	{
 		SetMeleeEnemyState(EMeleeEnemyState::HitReacting);
@@ -133,6 +140,9 @@ void ACombatMeleeEnemy::ApplyDeathState()
 	CurrentHitReactionMontage = nullptr;
 	bHitReacting = false;
 	
+	CurrentParriedMontage = nullptr;
+	bParriedReacting = false;
+	
 	SetMeleeEnemyState(EMeleeEnemyState::Dead);
 	SetActorTickEnabled(false);
 	TargetPlayerPawn.Reset();
@@ -141,6 +151,23 @@ void ACombatMeleeEnemy::ApplyDeathState()
 void ACombatMeleeEnemy::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
 {
 	Super::HandleHealthChanged(CurrentHealth, MaxHealth, Delta);
+}
+
+bool ACombatMeleeEnemy::RequestParriedReaction()
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return false;
+	}
+	
+	if (true == bParriedReacting)
+	{
+		return false;
+	}
+	
+	StartParriedReaction();
+	
+	return true;
 }
 
 void ACombatMeleeEnemy::CachePlayerPawn()
@@ -442,6 +469,101 @@ void ACombatMeleeEnemy::HandleHitReactionMontageEnded(UAnimMontage* Montage, boo
 	EndHitReaction();
 }
 
+void ACombatMeleeEnemy::StartParriedReaction()
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return;
+	}
+	
+	bParriedReacting = true;
+	bHitReacting = false;
+	
+	SetMeleeEnemyState(EMeleeEnemyState::Parried);
+	
+	StopChaseMovement();
+	
+	if (nullptr != EnemyAttackComponent)
+	{
+		EnemyAttackComponent->CancelAttack();
+	}
+	
+	const bool bPlayedMontage = TryPlayParriedMontage();
+	
+	if (false == bPlayedMontage)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play parried montage."), *GetName());
+		EndParriedReaction();
+	}
+}
+
+void ACombatMeleeEnemy::EndParriedReaction()
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return;
+	}
+	
+	CurrentParriedMontage = nullptr;
+	
+	bParriedReacting = false;
+	
+	SetMeleeEnemyState(EMeleeEnemyState::Idle);
+	
+	UE_LOG(LogTemp, Log, TEXT("%s parried reaction ended."), *GetName());
+}
+
+bool ACombatMeleeEnemy::IsParriedReacting() const
+{
+	return bParriedReacting;
+}
+
+bool ACombatMeleeEnemy::TryPlayParriedMontage()
+{
+	if (nullptr == ParriedMontage)
+	{
+		CurrentParriedMontage = nullptr;
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = nullptr != GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+	
+	if (nullptr == AnimInstance)
+	{
+		CurrentParriedMontage = nullptr;
+		return false;
+	}
+	
+	const float MontageLength = AnimInstance->Montage_Play(ParriedMontage, ParriedMontagePlayRate);
+	
+	if (0.0f >= MontageLength)
+	{
+		CurrentParriedMontage = nullptr;
+		UE_LOG(LogTemp, Warning, TEXT("%s failed to play parried montage."), *GetName());
+		return false;
+	}
+	
+	CurrentParriedMontage = ParriedMontage;
+	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &ACombatMeleeEnemy::HandleParriedMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, ParriedMontage);
+	
+	return true;
+}
+
+void ACombatMeleeEnemy::HandleParriedMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != CurrentParriedMontage)
+	{
+		return;
+	}
+	
+	CurrentParriedMontage = nullptr;
+	
+	EndParriedReaction();
+}
+
 void ACombatMeleeEnemy::SetMeleeEnemyState(EMeleeEnemyState NewState)
 {
 	if (MeleeEnemyState == NewState)
@@ -466,6 +588,8 @@ FString ACombatMeleeEnemy::GetMeleeEnemyStateDebugString() const
 		return TEXT("Attacking");
 	case EMeleeEnemyState::HitReacting:
 		return TEXT("HitReacting");
+	case EMeleeEnemyState::Parried:
+		return TEXT("Parried");
 	case EMeleeEnemyState::Dead:
 		return TEXT("Dead");
 	default:

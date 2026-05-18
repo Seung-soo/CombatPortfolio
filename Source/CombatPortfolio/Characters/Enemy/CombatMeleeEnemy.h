@@ -14,6 +14,7 @@ enum class EMeleeEnemyState : uint8
 	Chasing UMETA(DisplayName = "Chasing"),
 	Attacking UMETA(DisplayName = "Attacking"),
 	HitReacting UMETA(DisplayName = "HitReacting"),
+	Parried UMETA(DisplayName = "Parried"),
 	Dead UMETA(DisplayName = "Dead")
 };
 
@@ -35,6 +36,9 @@ protected:
 	virtual void Tick(float DeltaTime) override;
 	virtual void ApplyDeathState() override;
 	virtual void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta) override;
+	
+public:
+	bool RequestParriedReaction();
 	
 private:
 	void CachePlayerPawn();
@@ -62,6 +66,13 @@ private:
 	UAnimMontage* GetHitReactionMontageByDirection(ECombatHitDirection HitDirection) const;
 	
 	void HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	
+	
+	void StartParriedReaction();
+	void EndParriedReaction();
+	bool IsParriedReacting() const;
+	bool TryPlayParriedMontage();
+	void HandleParriedMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	
 	void SetMeleeEnemyState(EMeleeEnemyState NewState);
 	
@@ -118,6 +129,17 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true"))
 	EMeleeEnemyState MeleeEnemyState = EMeleeEnemyState::Idle;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Parry", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> ParriedMontage;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Melee AI|Parry", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> CurrentParriedMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
+	float ParriedMontagePlayRate = 1.0f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Melee AI|Parry", meta = (AllowPrivateAccess = "true"))
+	bool bParriedReacting = false;
 	
 private:
 	TWeakObjectPtr<APawn> TargetPlayerPawn;

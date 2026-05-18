@@ -11,6 +11,7 @@ class UAnimInstance;
 class UAnimMontage;
 class UHealthComponent;
 class UStaminaComponent;
+class UCameraShakeBase;
 
 UENUM(BlueprintType)
 enum class ECombatActionState : uint8
@@ -18,6 +19,7 @@ enum class ECombatActionState : uint8
 	Idle UMETA(DisplayName = "Idle"),
 	Attacking UMETA(DisplayName = "Attacking"),
 	Dodging UMETA(DisplayName = "Dodging"),
+	Parrying UMETA(DisplayName = "Parrying"),
 	HitReaction UMETA(DisplayName = "HitReaction"),
 	Dead UMETA(DisplayName = "Dead"),
 };
@@ -44,17 +46,22 @@ public:
 	bool RequestAttack(ECombatAttackInputType AttackInputType);
 	bool RequestDodge(const FVector& DodgeDirection);
 	bool RequestDeath();
+	bool RequestParry();
 	
 	bool CanStartAttack() const;
 	bool CanStartDodge() const;
+	bool CanStartParry() const;
 	
 	bool IsAttacking() const;
 	bool IsDodging() const;
 	bool IsDead() const;
+	bool IsParrying() const;
 	bool IsInvincible() const;
 	bool IsHitWindowOpen() const;
 	bool IsComboInputWindowOpen() const;
 	bool HasBufferedComboInput() const;
+	
+	
 	int GetCurrentComboIndex() const;
 	int32 GetHitActorCountThisAttack() const;
 	const FCombatAttackEntry* GetCurrentAttackEntry() const;
@@ -70,6 +77,10 @@ public:
 	bool IsHitReacting() const;
 	
 	bool IsDeathMontageFinished() const;
+	
+	void BeginParryWindow();
+	void EndParryWindow();
+	bool TryParryIncomingDamage(const FCombatDamageInfo& DamageInfo);
 	
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Event")
@@ -151,6 +162,16 @@ private:
 	UStaminaComponent* GetOwnerStaminaComponent() const;
 	bool CanPayAttackStaminaCost(const FCombatAttackEntry& AttackEntry) const;
 	bool TrySpendAttackStaminaCost(const FCombatAttackEntry& AttackEntry) const;
+	
+	
+	bool StartParry();
+	bool TryPlayParryMontage();
+	bool TryPlayParrySuccessMontage();
+	void FinishParry();
+	void HandleParryMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void HandleParrySuccessMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void SetParryWindowOpen(bool bNewParryWindowOpen);
+	void ApplyParrySuccessFeedback(const FCombatDamageInfo& DamageInfo);
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
@@ -245,6 +266,44 @@ private:
 	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	bool bCurrentAttackStaminaCostPaid = false;
+	
+	// Parry
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> ParryMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> ParrySuccessMontage;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> CurrentParryMontage;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
+	float ParryMontagePlayRate = 1.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
+	float ParrySuccessMontagePlayRate = 1.0f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
+	bool bParryWindowOpen = false;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
+	bool bParrySucceeded = false;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float ParryStaminaCost = 15.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry|Feedback", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float ParrySuccessHitStopDuration = 0.08f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", ClampMax = "1.0"))
+	float ParrySuccessHitStopTimeDilation = 0.03f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry|Feedback", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UCameraShakeBase> ParrySuccessCameraShakeClass;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry|Feedback", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float ParrySuccessCameraShakeScale = 1.0f;
 	
 private:
 	FTimerHandle DodgeFallbackTimerHandle;

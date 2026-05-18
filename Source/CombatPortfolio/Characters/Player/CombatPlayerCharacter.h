@@ -104,6 +104,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> LockOnAction;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> ParryAction;
+	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UPlayerHUDWidget> PlayerHUDWidgetClass;
@@ -126,6 +129,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
 	float DodgeMoveSpeed = 0.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float ParryMoveSpeed = 0.0f;
 	
 	FVector2D LastMovementInputVector = FVector2D::ZeroVector;
 	
@@ -195,9 +201,11 @@ private:
 	void Attack();
 	void Dodge();
 	void HeavyAttack();
+	void Parry();
 	
 	bool IsCombatAttacking() const;
 	bool IsCombatDodging() const;
+	bool IsCombatParrying() const;
 	
 	void ToggleLockOn();
 	void UpdateLockOnRotation(float DeltaSeconds);

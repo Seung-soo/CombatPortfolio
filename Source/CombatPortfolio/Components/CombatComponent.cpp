@@ -105,7 +105,22 @@ bool UCombatComponent::RequestDeath()
 	return true;
 }
 
+bool UCombatComponent::RequestParry()
+{
+	if (false == CanStartParry())
+	{
+		return false;
+	}
+	
+	return StartParry();
+}
+
 bool UCombatComponent::CanStartDodge() const
+{
+	return ECombatActionState::Idle == CombatActionState;
+}
+
+bool UCombatComponent::CanStartParry() const
 {
 	return ECombatActionState::Idle == CombatActionState;
 }
@@ -118,6 +133,11 @@ bool UCombatComponent::IsDodging() const
 bool UCombatComponent::IsDead() const
 {
 	return ECombatActionState::Dead == CombatActionState;
+}
+
+bool UCombatComponent::IsParrying() const
+{
+	return ECombatActionState::Parrying == CombatActionState;
 }
 
 bool UCombatComponent::IsInvincible() const
@@ -272,6 +292,67 @@ bool UCombatComponent::IsHitReacting() const
 bool UCombatComponent::IsDeathMontageFinished() const
 {
 	return bDeathMontageFinished;
+}
+
+void UCombatComponent::BeginParryWindow()
+{
+	if (ECombatActionState::Parrying != CombatActionState)
+	{
+		return;
+	}
+	
+	SetParryWindowOpen(true);
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Parry window Opened."));
+}
+
+void UCombatComponent::EndParryWindow()
+{
+	SetParryWindowOpen(false);
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Parry window closed."));
+}
+
+bool UCombatComponent::TryParryIncomingDamage(const FCombatDamageInfo& DamageInfo)
+{
+	if (ECombatActionState::Parrying != CombatActionState)
+	{
+		return false;
+	}
+	
+	if (true == bParrySucceeded)
+	{
+		return false;
+	}
+	
+	if (false == bParryWindowOpen)
+	{
+		return false;
+	}
+	
+	if (ECombatHitStrength::Heavy == DamageInfo.HitStrength)
+	{
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Parry failed: Heavy attack cannot be parried."));
+		return false;
+	}
+	
+	bParrySucceeded = true;
+	
+	SetParryWindowOpen(false);
+	
+	ApplyParrySuccessFeedback(DamageInfo);
+	
+	const bool bSuccessMontageStarted = TryPlayParrySuccessMontage();
+	
+	if (false == bSuccessMontageStarted)
+	{
+		FinishParry();
+	}
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Parry success. Attacker: %s"),
+		IsValid(DamageInfo.InstigatorActor) ? *DamageInfo.InstigatorActor->GetName() : TEXT("None"));
+
+	return true;
 }
 
 ECombatActionState UCombatComponent::GetCombatActionState() const
@@ -1321,4 +1402,171 @@ bool UCombatComponent::TrySpendAttackStaminaCost(const FCombatAttackEntry& Attac
 	}
 	
 	return StaminaComponent->TrySpendStamina(AttackEntry.StaminaCost);
+}
+
+bool UCombatComponent::StartParry()
+{
+	UStaminaComponent* StaminaComponent = GetOwnerStaminaComponent();
+	
+	if (nullptr == StaminaComponent)
+	{
+		return false;
+	}
+	
+	if (false == StaminaComponent->HasEnoughStamina(ParryStaminaCost))
+	{
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Parry failed: Not enough stamina. Required: %.1f"), ParryStaminaCost);
+		return false;
+	}
+	
+	if (false == TryPlayParryMontage())
+	{
+		return false;
+	}
+	
+	if (false == StaminaComponent->TrySpendStamina(ParryStaminaCost))
+	{
+		return false;
+	}
+	
+	bParrySucceeded = false;
+	CurrentParryMontage = ParryMontage;
+	
+	SetParryWindowOpen(false);
+	SetCombatActionState(ECombatActionState::Parrying);
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Parry started."));
+	
+	return true;
+}
+
+bool UCombatComponent::TryPlayParryMontage()
+{
+	if (nullptr == ParryMontage)
+	{
+		UE_LOG(LogCombatPortfolio, Warning, TEXT("Parry failed: ParryMontage is null."));
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = GetOwnerAnimInstance();
+	
+	if (nullptr == AnimInstance)
+	{
+		return false;
+	}
+	
+	const float MontageDuration = AnimInstance->Montage_Play(ParryMontage, ParryMontagePlayRate);
+	
+	if (0.0f >= MontageDuration)
+	{
+		UE_LOG(LogCombatPortfolio, Warning, TEXT("Parry failed: Montage_Play returned 0."));
+		return false;
+	}
+	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &UCombatComponent::HandleParryMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, ParryMontage);
+	
+	return true;
+}
+
+bool UCombatComponent::TryPlayParrySuccessMontage()
+{
+	if (nullptr == ParrySuccessMontage)
+	{
+		return false;
+	}
+	
+	UAnimInstance* AnimInstance = GetOwnerAnimInstance();
+	
+	if (nullptr == AnimInstance)
+	{
+		return false;
+	}
+	
+	CurrentParryMontage = ParrySuccessMontage;
+	
+	const float MontageDuration = AnimInstance->Montage_Play(ParrySuccessMontage, ParrySuccessMontagePlayRate);
+	
+	if (0.0f >= MontageDuration)
+	{
+		UE_LOG(LogCombatPortfolio, Warning, TEXT("ParrySuccess failed: Montage_Play returned 0."));
+		FinishParry();
+		return false;
+	}
+	
+	FOnMontageEnded MontageEndedDelegate;
+	MontageEndedDelegate.BindUObject(this, &UCombatComponent::HandleParrySuccessMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, ParrySuccessMontage);
+	
+	return true;
+}
+
+void UCombatComponent::FinishParry()
+{
+	if (ECombatActionState::Parrying != CombatActionState)
+	{
+		return;
+	}
+	
+	SetParryWindowOpen(false);
+
+	CurrentParryMontage = nullptr;
+	bParrySucceeded = false;
+	
+	SetCombatActionState(ECombatActionState::Idle);
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Parry finished."));
+}
+
+void UCombatComponent::HandleParryMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != CurrentParryMontage)
+	{
+		return;
+	}
+	
+	if (true == bParrySucceeded)
+	{
+		return;
+	}
+	
+	FinishParry();
+}
+
+void UCombatComponent::HandleParrySuccessMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != CurrentParryMontage)
+	{
+		return;
+	}
+	
+	FinishParry();
+}
+
+void UCombatComponent::SetParryWindowOpen(bool bNewParryWindowOpen)
+{
+	if (bParryWindowOpen == bNewParryWindowOpen)
+	{
+		return;
+	}
+	
+	bParryWindowOpen = bNewParryWindowOpen;
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Parry window %s."), true == bParryWindowOpen ? TEXT("opened") : TEXT("closed"));
+}
+
+void UCombatComponent::ApplyParrySuccessFeedback(const FCombatDamageInfo& DamageInfo)
+{
+	FCombatDamageInfo ParryFeedbackInfo = DamageInfo;
+	
+	ParryFeedbackInfo.DamageAmount = 0.0f;
+	ParryFeedbackInfo.HitStopDuration = ParrySuccessHitStopDuration;
+	ParryFeedbackInfo.HitStopTimeDilation = ParrySuccessHitStopTimeDilation;
+	ParryFeedbackInfo.CameraShakeClass = ParrySuccessCameraShakeClass;
+	ParryFeedbackInfo.CameraShakeScale = ParrySuccessCameraShakeScale;
+	ParryFeedbackInfo.HitVFX = nullptr;
+	ParryFeedbackInfo.HitSFX = nullptr;
+	
+	UCombatDamageLibrary::ApplyDamageFeedbackFromDamageInfo(ParryFeedbackInfo);
 }

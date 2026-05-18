@@ -184,13 +184,20 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 	{
 		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::HeavyAttack);
 	}
+	
+	if (nullptr != ParryAction)
+	{
+		EnhancedInputComponent->BindAction(ParryAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::Parry);
+	}
 }
 
 void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 {
 	if (nullptr != CombatComponent)
 	{
-		if (true == CombatComponent->IsDead() || true == CombatComponent->IsHitReacting())
+		if (true == CombatComponent->IsDead() || 
+			true == CombatComponent->IsHitReacting() ||
+			true == CombatComponent->IsParrying())
 		{
 			return;
 		}
@@ -251,7 +258,9 @@ void ACombatPlayerCharacter::StartSprint()
 {
 	if (CombatComponent != nullptr)
 	{
-		if (true == CombatComponent->IsDead() || true == CombatComponent->IsHitReacting())
+		if (true == CombatComponent->IsDead() || 
+			true == CombatComponent->IsHitReacting() ||
+			true == CombatComponent->IsParrying())
 		{
 			return;
 		}
@@ -367,6 +376,12 @@ void ACombatPlayerCharacter::UpdateMovementSpeed()
 	
 	if (nullptr == MovementComponent)
 	{
+		return;
+	}
+	
+	if (true == IsCombatParrying())
+	{
+		MovementComponent->MaxWalkSpeed = ParryMoveSpeed;
 		return;
 	}
 	
@@ -511,9 +526,47 @@ void ACombatPlayerCharacter::HeavyAttack()
 	UpdateMovementSpeed();
 }
 
+void ACombatPlayerCharacter::Parry()
+{
+	if (nullptr == CombatComponent)
+	{
+		return;
+	}
+	
+	if (true == CombatComponent->IsDead())
+	{
+		return;
+	}
+	
+	const bool bParryStarted = CombatComponent->RequestParry();
+	
+	if (false == bParryStarted)
+	{
+		return;
+	}
+	
+	bWantsToSprint = false;
+	StopMove();
+	
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	
+	if (nullptr != MovementComponent)
+	{
+		MovementComponent->StopMovementImmediately();
+	}
+	
+	UpdateMovementState();
+	UpdateMovementSpeed();
+}
+
 bool ACombatPlayerCharacter::IsCombatDodging() const
 {
 	return nullptr != CombatComponent && true == CombatComponent->IsDodging();
+}
+
+bool ACombatPlayerCharacter::IsCombatParrying() const
+{
+	return nullptr != CombatComponent && true == CombatComponent->IsParrying();
 }
 
 void ACombatPlayerCharacter::ToggleLockOn()
@@ -963,6 +1016,8 @@ FString ACombatPlayerCharacter::GetCombatStateDebugString() const
 		return TEXT("Dodging");
 	case ECombatActionState::HitReaction:
 		return TEXT("HitReacting");
+	case ECombatActionState::Parrying:
+		return TEXT("Parrying");
 	case ECombatActionState::Dead:
 		return TEXT("Dead");
 	default:
