@@ -12,6 +12,7 @@ enum class EMeleeEnemyState : uint8
 {
 	Idle UMETA(DisplayName = "Idle"),
 	Chasing UMETA(DisplayName = "Chasing"),
+	ReadyToAttack UMETA(DisplayName = "ReadyToAttack"),
 	Attacking UMETA(DisplayName = "Attacking"),
 	HitReacting UMETA(DisplayName = "HitReacting"),
 	Parried UMETA(DisplayName = "Parried"),
@@ -19,6 +20,7 @@ enum class EMeleeEnemyState : uint8
 };
 
 class UAnimMontage;
+class AAIController;
 
 /**
  * 
@@ -38,7 +40,7 @@ protected:
 	virtual void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta) override;
 	
 public:
-	bool RequestParriedReaction();
+	virtual bool RequestParriedReaction() override;
 	
 private:
 	void CachePlayerPawn();
@@ -52,7 +54,6 @@ private:
 	
 	FVector GetPlanarDirectionToTarget() const;
 	void UpdateFacingToTarget(float DeltaTime);
-	void UpdateChaseMovement();
 	void StopChaseMovement();
 	void TryAttackTarget();
 	
@@ -81,6 +82,28 @@ private:
 	void DrawMeleeDebug() const;
 	
 private:
+	void CacheEnemyAIController();
+	
+	EMeleeEnemyState EvaluateMeleeEnemyState() const;
+	void UpdateMeleeEnemyState(float DeltaTime);
+	
+	void EnterMeleeEnemyState(EMeleeEnemyState NewState);
+	void ExitMeleeEnemyState(EMeleeEnemyState OldState);
+	
+	void UpdateIdleState(float DeltaTime);
+	void UpdateChasingState(float DeltaTime);
+	void UpdateReadyToAttackState(float DeltaTime);
+	void UpdateAttackingState(float DeltaTime);
+	void UpdateHitReactingState(float DeltaTime);
+	void UpdateParriedState(float DeltaTime);
+	void UpdateDeadState(float DeltaTime);
+	
+	void RequestMoveToTarget();
+	void ResetNavigationUpdateTimer();
+	bool ShouldUpdateNavigation(float DeltaTime);
+	AAIController* GetCachedEnemyAIController() const;
+	
+private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float DetectionRadius = 900.0f;
 	
@@ -92,6 +115,15 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Navigation", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float NavigationAcceptanceRadius = 5.0f;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI|Navigation", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
+	float NavigationUpdateInterval = 0.25f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Melee AI|Navigation", meta = (AllowPrivateAccess = "true"))
+	float NavigationUpdateElapsedTime = 0.0f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Melee AI|Navigation", meta = (AllowPrivateAccess = "true"))
+	bool bMoveRequestActive = false;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee AI", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
 	float ChaseMoveSpeed = 280.0f;
@@ -143,4 +175,6 @@ private:
 	
 private:
 	TWeakObjectPtr<APawn> TargetPlayerPawn;
+	
+	TWeakObjectPtr<AAIController> CachedEnemyAIController;
 };

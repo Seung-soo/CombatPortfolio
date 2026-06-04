@@ -6,7 +6,6 @@
 #include "HealthComponent.h"
 #include "Animation/AnimMontage.h"
 #include "CombatPortfolio/CombatPortfolio.h"
-#include "CombatPortfolio/Characters/Enemy/CombatMeleeEnemy.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "GameFramework/Character.h"
 #include "CombatPortfolio/Data/CombatAttackData.h"
@@ -329,25 +328,9 @@ void UEnemyAttackComponent::PerformAttackTrace()
 		{
 			continue;
 		}
-		
-		const bool bDamageBlocked = IsDamageBlockedByInvincibility(HitActor);
-		
-		if (true == bDamageBlocked)
-		{
-			AddHitActor(HitActor);
-			
-			UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy damage blocked by invincibility: %s"), *HitActor->GetName());
-			
-			if (true == bDrawAttackDebug && nullptr != GEngine)
-			{
-				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Enemy Attack Blocked by IFrame"));
-			}
-			
-			continue;
-		}
-		
-		ApplyDamageToActor(HitResult);
+
 		AddHitActor(HitActor);
+		ApplyDamageToActor(HitResult);
 	}
 }
 
@@ -359,25 +342,7 @@ void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 	{
 		return;
 	}
-	
-	if (true == IsDamageBlockedByInvincibility(TargetActor))
-	{
-		return;
-	}
-	
-	UHealthComponent* HealthComponent = TargetActor->FindComponentByClass<UHealthComponent>();
-	
-	if (nullptr == HealthComponent)
-	{
-		UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy hit actor has no HealthComponent: %s"), *TargetActor->GetName());
-		return;
-	}
-	
-	if (true == HealthComponent->IsDead())
-	{
-		return;
-	}
-	
+
 	const FCombatAttackEntry* AttackEntry = GetAttackEntry();
 	
 	if (nullptr == AttackEntry)
@@ -385,75 +350,17 @@ void UEnemyAttackComponent::ApplyDamageToActor(const FHitResult& HitResult)
 		return;
 	}
 	
-	AActor* OwnerActor = GetOwner();
+	FCombatDamageInfo DamageInfo = UCombatDamageLibrary::MakeDamageInfoFromAttackEntry(*AttackEntry, HitResult, GetOwner());
 	
-	FCombatDamageInfo DamageInfo;
-	DamageInfo.DamageAmount = AttackEntry->Damage;
-	DamageInfo.InstigatorActor = OwnerActor;
-	DamageInfo.DamageCauser = OwnerActor;
-	DamageInfo.HitActor = TargetActor;
-	DamageInfo.HitLocation = HitResult.ImpactPoint;
-	DamageInfo.HitNormal = HitResult.ImpactNormal;
-	DamageInfo.HitDirection = nullptr != OwnerActor ? 
-		(TargetActor->GetActorLocation() - OwnerActor->GetActorLocation()).GetSafeNormal() : FVector::ZeroVector;
-	DamageInfo.HitStrength = AttackEntry->HitStrength;
-	DamageInfo.HitDirectionType = UCombatDamageLibrary::CalculateHitDirectionFromIncomingDirection(TargetActor, DamageInfo.HitDirection);
-	DamageInfo.KnockbackStrength = AttackEntry->KnockbackStrength;
-	DamageInfo.HitStopDuration = AttackEntry->HitStopDuration;
-	DamageInfo.HitStopTimeDilation = AttackEntry->HitStopTimeDilation;
-	DamageInfo.CameraShakeClass = AttackEntry->HitCameraShakeClass;
-	DamageInfo.CameraShakeScale = AttackEntry->HitCameraShakeScale;
-	DamageInfo.HitVFX = AttackEntry->HitVFX;
-	DamageInfo.HitSFX = AttackEntry->HitSFX;
-	DamageInfo.HitVFXScale = AttackEntry->HitVFXScale;
-	DamageInfo.HitSFXVolumeMultiplier = AttackEntry->HitSFXVolumeMultiplier;
-	DamageInfo.HitSFXPitchMultiplier = AttackEntry->HitSFXPitchMultiplier;
-	
-	UCombatComponent* TargetCombatComponent = TargetActor->FindComponentByClass<UCombatComponent>();
-	
-	if (nullptr != TargetCombatComponent)
-	{
-		if (true == TargetCombatComponent->TryParryIncomingDamage(DamageInfo))
-		{
-			UE_LOG(LogCombatPortfolio, Log, TEXT("Attack parried by %s"), *TargetActor->GetName());
-			
-			ACombatMeleeEnemy* OwnerEnemy = Cast<ACombatMeleeEnemy>(OwnerActor);
-			
-			if (nullptr != OwnerEnemy)
-			{
-				OwnerEnemy->RequestParriedReaction();
-			}
-			
-			return;
-		}
-	}
-	
-	const bool bDamageApplied = HealthComponent->ApplyDamage(DamageInfo);
+	const bool bDamageApplied = UCombatDamageLibrary::TryApplyCombatDamage(DamageInfo);
 	
 	if (false == bDamageApplied)
 	{
-		UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy damage was not applied to: %s"), *TargetActor->GetName());
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy damage was not applied to: %s"), *GetNameSafe(TargetActor));
 		return;
 	}
 	
-	UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy applied %.1f damage to %s. HP: %.1f / %.1f"), DamageInfo.DamageAmount, *TargetActor->GetName(), HealthComponent->GetCurrentHealth(), HealthComponent->GetMaxHealth());
-}
-
-bool UEnemyAttackComponent::IsDamageBlockedByInvincibility(AActor* TargetActor) const
-{
-	if (nullptr == TargetActor)
-	{
-		return false;
-	}
-	
-	const UCombatComponent* TargetCombatComponent = TargetActor->FindComponentByClass<UCombatComponent>();
-	
-	if (nullptr == TargetCombatComponent)
-	{
-		return false;
-	}
-	
-	return TargetCombatComponent->IsInvincible();
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Enemy applied %.1f damage to %s."), DamageInfo.DamageAmount, *GetNameSafe(TargetActor));
 }
 
 bool UEnemyAttackComponent::HasAlreadyHitActor(const AActor* TargetActor) const

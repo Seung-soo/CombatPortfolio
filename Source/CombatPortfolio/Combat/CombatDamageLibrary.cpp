@@ -4,7 +4,12 @@
 #include "CombatDamageLibrary.h"
 
 #include "NiagaraFunctionLibrary.h"
+#include "CombatPortfolio/CombatPortfolio.h"
+#include "CombatPortfolio/Characters/Enemy/CombatEnemyBase.h"
+#include "CombatPortfolio/Components/CombatComponent.h"
+#include "CombatPortfolio/Components/HealthComponent.h"
 #include "CombatPortfolio/Components/HitStopComponent.h"
+#include "CombatPortfolio/Data/CombatAttackData.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -227,4 +232,105 @@ void UCombatDamageLibrary::ApplyDamageFeedbackFromDamageInfo(const FCombatDamage
 	PlayCameraShakeFromDamageInfo(DamageInfo);
 	ApplyHitStopFromDamageInfo(DamageInfo);
 	ApplyKnockbackFromDamageInfo(DamageInfo);
+}
+
+FCombatDamageInfo UCombatDamageLibrary::MakeDamageInfoFromAttackEntry(const FCombatAttackEntry& AttackEntry,
+	const FHitResult& HitResult, AActor* InstigatorActor)
+{
+	AActor* HitActor = HitResult.GetActor();
+	
+	FCombatDamageInfo DamageInfo;
+	DamageInfo.DamageAmount = AttackEntry.Damage;
+	DamageInfo.InstigatorActor = InstigatorActor;
+	DamageInfo.DamageCauser = InstigatorActor;
+	DamageInfo.HitActor = HitActor;
+	DamageInfo.HitLocation = HitResult.ImpactPoint;
+	DamageInfo.HitNormal = HitResult.ImpactNormal;
+
+	DamageInfo.HitDirection = nullptr != InstigatorActor && nullptr != HitActor 
+	? (HitActor->GetActorLocation() - InstigatorActor->GetActorLocation()).GetSafeNormal() : FVector::ZeroVector;
+	
+	DamageInfo.HitStrength = AttackEntry.HitStrength;
+	DamageInfo.HitDirectionType = CalculateHitDirectionFromIncomingDirection(HitActor, DamageInfo.HitDirection);
+	DamageInfo.KnockbackStrength = AttackEntry.KnockbackStrength;
+	DamageInfo.HitStopDuration = AttackEntry.HitStopDuration;
+	DamageInfo.HitStopTimeDilation = AttackEntry.HitStopTimeDilation;
+	
+	DamageInfo.CameraShakeClass = AttackEntry.HitCameraShakeClass;
+	DamageInfo.CameraShakeScale = AttackEntry.HitCameraShakeScale;
+	
+	DamageInfo.HitVFX = AttackEntry.HitVFX;
+	DamageInfo.HitSFX = AttackEntry.HitSFX;
+	DamageInfo.HitVFXScale = AttackEntry.HitVFXScale;
+	DamageInfo.HitSFXVolumeMultiplier = AttackEntry.HitSFXVolumeMultiplier;
+	DamageInfo.HitSFXPitchMultiplier = AttackEntry.HitSFXPitchMultiplier;
+	
+	return DamageInfo;
+}
+
+bool UCombatDamageLibrary::TryApplyCombatDamage(const FCombatDamageInfo& DamageInfo)
+{
+	AActor* TargetActor = DamageInfo.HitActor;
+	
+	if (nullptr == TargetActor)
+	{
+		return false;
+	}
+	
+	UHealthComponent* HealthComponent = TargetActor->FindComponentByClass<UHealthComponent>();
+	
+	if (nullptr == HealthComponent)
+	{
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Damage failed: Target has no HealthComponent. Target: %s"), *GetNameSafe(TargetActor));
+		return false;
+	}
+	
+	if (true == HealthComponent->IsDead())
+	{
+		return false;
+	}
+	
+	UCombatComponent* TargetCombatComponent = TargetActor->FindComponentByClass<UCombatComponent>();
+	
+	if (nullptr != TargetCombatComponent)
+	{
+		if (true == TargetCombatComponent->TryParryIncomingDamage(DamageInfo))
+		{
+			UE_LOG(LogCombatPortfolio, Log, TEXT("Damage parried by %s"), *GetNameSafe(TargetActor));
+			
+			ACombatEnemyBase* InstigatorEnemy = Cast<ACombatEnemyBase>(DamageInfo.InstigatorActor);
+			
+			if (nullptr != InstigatorEnemy)
+			{
+				InstigatorEnemy->RequestParriedReaction();
+			}
+			
+			return false;
+		}
+	}
+	
+	if (true == IsDamageBlockedByInvincibility(TargetActor))
+	{
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Damage blocked by invincibility: %s"), *GetNameSafe(TargetActor));
+		return false;
+	}
+	
+	return HealthComponent->ApplyDamage(DamageInfo);
+}
+
+bool UCombatDamageLibrary::IsDamageBlockedByInvincibility(const AActor* TargetActor)
+{
+	if (nullptr == TargetActor)
+	{
+		return false;
+	}
+	
+	const UCombatComponent* TargetCombatComponent = TargetActor->FindComponentByClass<UCombatComponent>();
+	
+	if (nullptr == TargetCombatComponent)
+	{
+		return false;
+	}
+	
+	return TargetCombatComponent->IsInvincible();
 }

@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -14,23 +12,12 @@ class UStaminaComponent;
 class UHealthComponent;
 class ULockOnComponent;
 class UHitStopComponent;
-class UPlayerHUDWidget;
+class UPlayerAttackComponent;
+class UPlayerDefenseComponent;
+class UPlayerReactionComponent;
+class UPlayerHUDComponent;
+class UPlayerLocomotionComponent;
 struct FInputActionValue;
-
-UENUM(BlueprintType)
-enum class ECombatMovementState : uint8
-{
-	Walking UMETA(DisplayName = "Walking"),
-	Running UMETA(DisplayName = "Running"),
-	Sprinting UMETA(DisplayName = "Sprinting"),
-};
-
-UENUM(BlueprintType)
-enum class ECombatRotationMode : uint8
-{
-	OrientToMovement UMETA(DisplayName = "Orient To Movement"),
-	Strafe UMETA(DisplayName = "Strafe")
-};
 
 UCLASS()
 class COMBATPORTFOLIO_API ACombatPlayerCharacter : public ACharacter
@@ -38,19 +25,14 @@ class COMBATPORTFOLIO_API ACombatPlayerCharacter : public ACharacter
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
 	ACombatPlayerCharacter();
 	
 	UFUNCTION(BlueprintCallable, Category = "Debug")
 	void DebugApplyDamageToPlayer(float DamageAmount);
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
 	virtual void Tick(float DeltaTime ) override;
-	
-	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 private:
@@ -64,6 +46,15 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCombatComponent> CombatComponent;
 	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPlayerAttackComponent> PlayerAttackComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPlayerDefenseComponent> PlayerDefenseComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPlayerReactionComponent> PlayerReactionComponent;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaminaComponent> StaminaComponent;
 	
@@ -75,6 +66,12 @@ private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UHitStopComponent> HitStopComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPlayerHUDComponent> PlayerHUDComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPlayerLocomotionComponent> PlayerLocomotionComponent;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -106,70 +103,7 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> ParryAction;
-	
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UPlayerHUDWidget> PlayerHUDWidgetClass;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UPlayerHUDWidget> PlayerHUDWidget;
-	
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
-	float WalkSpeed = 250.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
-	float RunSpeed = 500.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
-	float SprintSpeed = 700.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
-	float AttackMoveSpeed = 150.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true"))
-	float DodgeMoveSpeed = 0.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|Speed", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float ParryMoveSpeed = 0.0f;
-	
-	FVector2D LastMovementInputVector = FVector2D::ZeroVector;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
-	ECombatMovementState MovementState = ECombatMovementState::Running;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
-	bool bWantsToWalk = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Movement|State", meta = (AllowPrivateAccess = "true"))
-	bool bWantsToSprint = false;
-	
-	
-private:
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Rotation", meta = (AllowPrivateAccess = "true"))
-	ECombatRotationMode RotationMode = ECombatRotationMode::OrientToMovement;
-	
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-	float LookSensitivityX = 1.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
-	float LookSensitivityY = 1.0f;
-	
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float SprintStaminaDrainRate = 18.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float MinStaminaToStartSprint = 5.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stamina", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float DodgeStaminaCost = 25.0f;
-	
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LockOn", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float LockOnRotationInterpSpeed = 12.0f;
-	
+
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug", meta = (AllowPrivateAccess = "true"))
 	bool bShowMovementDebug = true;
@@ -192,45 +126,22 @@ private:
 	void StopSprint();
 	
 	void ToggleRotationMode();
-	void SetRotationMode(ECombatRotationMode NewRotationMode);
-	void ApplyRotationMode();
-	
-	void UpdateMovementState();
-	void UpdateMovementSpeed();
 	
 	void Attack();
 	void Dodge();
 	void HeavyAttack();
 	void Parry();
-	
-	bool IsCombatAttacking() const;
-	bool IsCombatDodging() const;
-	bool IsCombatParrying() const;
-	
+
 	void ToggleLockOn();
-	void UpdateLockOnRotation(float DeltaSeconds);
-	bool IsLockedOn() const;
-	
-	FVector GetAttackDirection() const;
-	FVector GetLockOnAttackDirection() const;
-	FVector GetMovementInputAttackDirection() const;
-	FVector GetCameraForwardAttackDirection() const;
-	void FaceAttackDirection(const FVector& AttackDirection);
 	
 	void UpdateCharacterTickEnabled();
-	
-	void CreatePlayerHUD();
-	void InitializePlayerHUD();
 	
 	UFUNCTION()
 	void HandleCombatActionStateChanged();
 	
 	UFUNCTION()
 	void HandleStaminaDepleted();
-	
-	UFUNCTION()
-	void HandleStaminaChanged(float CurrentStamina, float MaxStamina, float Delta);
-	
+
 	UFUNCTION()
 	void HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta);
 	
@@ -242,14 +153,6 @@ private:
 	
 	UFUNCTION()
 	void HandleLockOnTargetChanged();
-	
-	FVector GetDodgeDirection() const;
-	
-	FVector GetFreeDodgeDirection() const;
-	
-	FVector GetLockOnDodgeDirection() const;
-	
-	FVector GetPlanarDirectionToLockOnTarget() const;
 	
 	FString GetStaminaDebugString() const;
 	

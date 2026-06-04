@@ -131,6 +131,11 @@ void ACombatEnemyBase::ApplyDeathState()
 	}
 }
 
+bool ACombatEnemyBase::RequestParriedReaction()
+{
+	return false;
+}
+
 UHealthComponent* ACombatEnemyBase::GetHealthComponent() const
 {
 	return HealthComponent.Get();

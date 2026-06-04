@@ -53,6 +53,10 @@ protected:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UHitStopComponent> HitStopComponent;
+	
+
+public:
+	virtual bool RequestParriedReaction();
 
 public:
 	UHealthComponent* GetHealthComponent() const;

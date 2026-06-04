@@ -30,13 +30,14 @@ void ACombatMeleeEnemy::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	CacheEnemyAIController();
+	
 	if (nullptr != HealthComponent)
 	{
 		HealthComponent->OnDamaged.AddDynamic(this, &ACombatMeleeEnemy::HandleDamaged);
 	}
 	
 	CachePlayerPawn();
-	SetMeleeEnemyState(EMeleeEnemyState::Idle);
 	
 	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
 	
@@ -44,91 +45,24 @@ void ACombatMeleeEnemy::BeginPlay()
 	{
 		MovementComponent->MaxWalkSpeed = ChaseMoveSpeed;
 	}
+	
+	SetMeleeEnemyState(EMeleeEnemyState::Idle);
 }
 
 void ACombatMeleeEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Dead);
-		StopChaseMovement();
-		return;
-	}
+	const EMeleeEnemyState DesiredState = EvaluateMeleeEnemyState();
 	
-	if (true == IsParriedReacting())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Parried);
-		StopChaseMovement();
-		return;
-	}
+	SetMeleeEnemyState(DesiredState);
 	
-	if (true == IsHitReacting())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::HitReacting);
-		StopChaseMovement();
-		return;
-	}
+	UpdateMeleeEnemyState(DeltaTime);
 	
-	if (false == HasValidTarget())
-	{
-		CachePlayerPawn();
-		SetMeleeEnemyState(EMeleeEnemyState::Idle);
-		StopChaseMovement();
-		return;
-	}
-	
-	if (true == IsTargetDead())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Idle);
-		StopChaseMovement();
-		return;
-	}
-	
-	if (true == bDrawMeleeDebug)
+	if (true == bDrawMeleeDebug && EMeleeEnemyState::Dead != MeleeEnemyState)
 	{
 		DrawMeleeDebug();
 	}
-	
-	if (false == IsTargetInsideDetectionRadius())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Idle);
-		StopChaseMovement();
-		return;
-	}
-	
-	UpdateFacingToTarget(DeltaTime);
-	
-	if (nullptr != EnemyAttackComponent && true == EnemyAttackComponent->IsAttacking())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Attacking);
-		StopChaseMovement();
-		return;
-	}
-	
-	if (false == IsTargetInsideStopDistance())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Chasing);
-		UpdateChaseMovement();
-		return;
-	}
-	
-	StopChaseMovement();
-	
-	if (false == IsTargetInsideAttackRange())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Idle);
-		return;
-	}
-	
-	if (false == IsFacingTarget())
-	{
-		SetMeleeEnemyState(EMeleeEnemyState::Idle);
-		return;
-	}
-	
-	TryAttackTarget();
 }
 
 void ACombatMeleeEnemy::ApplyDeathState()
@@ -281,36 +215,24 @@ void ACombatMeleeEnemy::UpdateFacingToTarget(float DeltaTime)
 	SetActorRotation(NewRotation);
 }
 
-void ACombatMeleeEnemy::UpdateChaseMovement()
-{
-	APawn* TargetPawn = TargetPlayerPawn.Get();
-	
-	if (nullptr == TargetPawn)
-	{
-		return;
-	}
-	
-	AAIController* EnemyAIController = Cast<AAIController>(GetController());
-	
-	if (nullptr == EnemyAIController)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s has no AIController."), *GetName());
-		return;
-	}
-	
-	EnemyAIController->MoveToActor(TargetPawn, NavigationAcceptanceRadius, false, true, true, nullptr, true);
-}
-
 void ACombatMeleeEnemy::StopChaseMovement()
 {
-	AAIController* EnemyAIController = Cast<AAIController>(GetController());
+	if (false == bMoveRequestActive)
+	{
+		return;
+	}
+	
+	AAIController* EnemyAIController = GetCachedEnemyAIController();
 	
 	if (nullptr == EnemyAIController)
 	{
+		bMoveRequestActive = false;
 		return;
 	}
 	
 	EnemyAIController->StopMovement();
+	
+	bMoveRequestActive = false;
 }
 
 void ACombatMeleeEnemy::TryAttackTarget()
@@ -571,7 +493,13 @@ void ACombatMeleeEnemy::SetMeleeEnemyState(EMeleeEnemyState NewState)
 		return;
 	}
 	
+	const EMeleeEnemyState OldState = MeleeEnemyState;
+	
+	ExitMeleeEnemyState(OldState);
+	
 	MeleeEnemyState = NewState;
+	
+	EnterMeleeEnemyState(NewState);
 	
 	UE_LOG(LogTemp, Log, TEXT("%s, MeleeState: %s"), *GetName(), *GetMeleeEnemyStateDebugString());
 }
@@ -584,6 +512,8 @@ FString ACombatMeleeEnemy::GetMeleeEnemyStateDebugString() const
 		return TEXT("Idle");
 	case EMeleeEnemyState::Chasing:
 		return TEXT("Chasing");
+	case EMeleeEnemyState::ReadyToAttack:
+		return TEXT("ReadyToAttack");
 	case EMeleeEnemyState::Attacking:
 		return TEXT("Attacking");
 	case EMeleeEnemyState::HitReacting:
@@ -630,4 +560,225 @@ void ACombatMeleeEnemy::DrawMeleeDebug() const
 			3.0f
 		);
 	}
+}
+
+void ACombatMeleeEnemy::CacheEnemyAIController()
+{
+	CachedEnemyAIController = Cast<AAIController>(GetController());
+}
+
+EMeleeEnemyState ACombatMeleeEnemy::EvaluateMeleeEnemyState() const
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return EMeleeEnemyState::Dead;
+	}
+	
+	if (true == IsParriedReacting())
+	{
+		return EMeleeEnemyState::Parried;
+	}
+	
+	if (true == IsHitReacting())
+	{
+		return EMeleeEnemyState::HitReacting;
+	}
+	
+	if (nullptr != EnemyAttackComponent && true == EnemyAttackComponent->IsAttacking())
+	{
+		return EMeleeEnemyState::Attacking;
+	}
+	
+	if (false == HasValidTarget())
+	{
+		return EMeleeEnemyState::Idle;
+	}
+	
+	if (true == IsTargetDead())
+	{
+		return EMeleeEnemyState::Idle;
+	}
+	
+	if (false == IsTargetInsideDetectionRadius())
+	{
+		return EMeleeEnemyState::Idle;
+	}
+	
+	if (false == IsTargetInsideStopDistance())
+	{
+		return EMeleeEnemyState::Chasing;
+	}
+	
+	if (true == IsTargetInsideAttackRange())
+	{
+		return EMeleeEnemyState::ReadyToAttack;
+	}
+	
+	return EMeleeEnemyState::Idle;
+}
+
+void ACombatMeleeEnemy::UpdateMeleeEnemyState(float DeltaTime)
+{
+	switch (MeleeEnemyState)
+	{
+	case EMeleeEnemyState::Idle:
+		UpdateIdleState(DeltaTime);
+		break;
+	case EMeleeEnemyState::Chasing:
+		UpdateChasingState(DeltaTime);
+		break;
+	case EMeleeEnemyState::ReadyToAttack:
+		UpdateReadyToAttackState(DeltaTime);
+		break;
+	case EMeleeEnemyState::Attacking:
+		UpdateAttackingState(DeltaTime);
+		break;
+	case EMeleeEnemyState::HitReacting:
+		UpdateHitReactingState(DeltaTime);
+		break;
+	case EMeleeEnemyState::Parried:
+		UpdateParriedState(DeltaTime);
+		break;
+	case EMeleeEnemyState::Dead:
+		UpdateDeadState(DeltaTime);
+		break;
+	default:
+		break;
+	}
+}
+
+void ACombatMeleeEnemy::EnterMeleeEnemyState(EMeleeEnemyState NewState)
+{
+	switch (NewState)
+	{
+	case EMeleeEnemyState::Idle:
+		StopChaseMovement();
+		break;
+	case EMeleeEnemyState::Chasing:
+		ResetNavigationUpdateTimer();
+		RequestMoveToTarget();
+		break;
+	case EMeleeEnemyState::ReadyToAttack:
+		StopChaseMovement();
+		break;
+	case EMeleeEnemyState::Attacking:
+		StopChaseMovement();
+		break;
+	case EMeleeEnemyState::HitReacting:
+		StopChaseMovement();
+		break;
+	case EMeleeEnemyState::Parried:
+		StopChaseMovement();
+		break;
+	case EMeleeEnemyState::Dead:
+		StopChaseMovement();
+		break;
+	default:
+		break;
+	}
+}
+
+void ACombatMeleeEnemy::ExitMeleeEnemyState(EMeleeEnemyState OldState)
+{
+	switch (OldState)
+	{
+	case EMeleeEnemyState::Chasing:
+		ResetNavigationUpdateTimer();
+		break;
+	default:
+		break;
+	}
+}
+
+void ACombatMeleeEnemy::UpdateIdleState(float DeltaTime)
+{
+	if (false == HasValidTarget())
+	{
+		CachePlayerPawn();
+	}
+}
+
+void ACombatMeleeEnemy::UpdateChasingState(float DeltaTime)
+{
+	UpdateFacingToTarget(DeltaTime);
+	
+	if (true == ShouldUpdateNavigation(DeltaTime))
+	{
+		RequestMoveToTarget();
+	}
+}
+
+void ACombatMeleeEnemy::UpdateReadyToAttackState(float DeltaTime)
+{
+	UpdateFacingToTarget(DeltaTime);
+	
+	if (false == IsFacingTarget())
+	{
+		return;
+	}
+	
+	TryAttackTarget();
+}
+
+void ACombatMeleeEnemy::UpdateAttackingState(float DeltaTime)
+{
+	UpdateFacingToTarget(DeltaTime);
+}
+
+void ACombatMeleeEnemy::UpdateHitReactingState(float DeltaTime)
+{
+}
+
+void ACombatMeleeEnemy::UpdateParriedState(float DeltaTime)
+{
+}
+
+void ACombatMeleeEnemy::UpdateDeadState(float DeltaTime)
+{
+}
+
+void ACombatMeleeEnemy::RequestMoveToTarget()
+{
+	APawn* TargetPawn = TargetPlayerPawn.Get();
+	
+	if (nullptr == TargetPawn)
+	{
+		return;
+	}
+	
+	AAIController* EnemyAIController = GetCachedEnemyAIController();
+	
+	if (nullptr == EnemyAIController)
+	{
+		CacheEnemyAIController();
+		EnemyAIController = GetCachedEnemyAIController();
+	}
+	
+	EnemyAIController->MoveToActor(TargetPawn, NavigationAcceptanceRadius, false, true, true, nullptr, true);
+	
+	bMoveRequestActive = true;
+}
+
+void ACombatMeleeEnemy::ResetNavigationUpdateTimer()
+{
+	NavigationUpdateElapsedTime = NavigationUpdateInterval;
+}
+
+bool ACombatMeleeEnemy::ShouldUpdateNavigation(float DeltaTime)
+{
+	NavigationUpdateElapsedTime += DeltaTime;
+	
+	if (NavigationUpdateElapsedTime < NavigationUpdateInterval)
+	{
+		return false;
+	}
+	
+	NavigationUpdateElapsedTime = 0.0f;
+	
+	return true;
+}
+
+AAIController* ACombatMeleeEnemy::GetCachedEnemyAIController() const
+{
+	return CachedEnemyAIController.Get();
 }

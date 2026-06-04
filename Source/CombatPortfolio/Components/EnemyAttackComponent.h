@@ -46,8 +46,6 @@ private:
 	void PerformAttackTrace();
 	void ApplyDamageToActor(const FHitResult& HitResult);
 	
-	bool IsDamageBlockedByInvincibility(AActor* TargetActor) const;
-	
 	bool HasAlreadyHitActor(const AActor* TargetActor) const;
 	
 	void AddHitActor(AActor* TargetActor);

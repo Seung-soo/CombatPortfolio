@@ -2,16 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "TimerManager.h"
 #include "CombatPortfolio/Combat/CombatDamageType.h"
 #include "CombatPortfolio/Data/CombatAttackData.h"
 #include "CombatComponent.generated.h"
 
-class UAnimInstance;
-class UAnimMontage;
-class UHealthComponent;
-class UStaminaComponent;
-class UCameraShakeBase;
+class UPlayerAttackComponent;
+class UPlayerDefenseComponent;
+class UPlayerReactionComponent;
 
 UENUM(BlueprintType)
 enum class ECombatActionState : uint8
@@ -96,220 +93,32 @@ public:
 	FOnInvincibilityChangedSignature OnInvincibilityChanged;
 	
 private:
-	bool StartAttack(ECombatAttackInputType AttackInputType);
-	bool StartDodge(const FVector& DodgeDirection);
-	
-	bool TryPlayDodgeMontage();
-	void ApplyDodgeMovement(const FVector& DodgeDirection);
-	
-	void BeginDodgeInvincibility();
-	void EndDodgeInvincibility();
-	
-	bool TryBufferComboInput();
-	bool TryCommitBufferedCombo();
-	bool CanMoveToNextCombo() const;
-	const FCombatAttackEntry* GetCurrentComboAttackData() const;
-	const FCombatAttackEntry* GetComboAttackDataByIndex(int32 ComboIndex) const;
-	FName GetCurrentComboSectionName() const;
-	FName GetNextComboSectionName() const;
-	void ResetComboState();
-	
-	UAnimInstance* GetOwnerAnimInstance() const;
-	
-	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-	void HandleDodgeMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-	
-	void FinishAttack();
-	void FinishDodge();
-	
 	void SetCombatActionState(ECombatActionState NewCombatActionState);
-	
-	void SetHitWindowOpen(bool bNewHitWindowOpen);
-	
-	void SetComboInputWindowOpen(bool bNewComboInputWindowOpen);
-	void SetComboInputBuffered(bool bNewComboInputBuffered);
-	
-	void SetDodgeInvincible(bool bNewInvincible);
-	void SetHitReactionInvincible(bool bNewInvincible);
-	void BroadcastInvincibilityIfChanged(bool bOldInvincible);
-	
-	void PerformAttackTrace();
-	void ApplyDamageToHitActor(const FHitResult& HitResult);
-	bool HasAlreadyHitActor(const AActor* HitActor) const;
-	void RegisterHitActor(AActor* HitActor);
-	FVector GetAttackTraceStartLocation() const;
-	FVector GetAttackTraceEndLocation() const;
-	
-	bool IsDamageBlockedByInvincibility(const AActor* TargetActor) const;
-
-	void EndHitReaction();
-	bool TryPlayHitReactionMontage(const FCombatDamageInfo& DamageInfo);
-	UAnimMontage* GetHitReactionMontageByDirection(ECombatHitDirection HitDirection) const;
-	void StartHitReactionInvincibility();
-	void EndHitReactionInvincibility();
-	void HandleHitReactionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-	
-	bool TryPlayDeathMontage();
-	void HandleDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 	
 	void CancelCurrentActionForInterrupt();
 	void CancelAttack();
-	void ResetAttackHitState();
+
 	
-	UCombatAttackData* GetAttackDataByInputType(ECombatAttackInputType AttackInputType) const;
-	UAnimMontage* GetAttackMontageByInputType(ECombatAttackInputType AttackInputType) const;
-	
-	UStaminaComponent* GetOwnerStaminaComponent() const;
-	bool CanPayAttackStaminaCost(const FCombatAttackEntry& AttackEntry) const;
-	bool TrySpendAttackStaminaCost(const FCombatAttackEntry& AttackEntry) const;
-	
-	
-	bool StartParry();
-	bool TryPlayParryMontage();
-	bool TryPlayParrySuccessMontage();
-	void FinishParry();
-	void HandleParryMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-	void HandleParrySuccessMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-	void SetParryWindowOpen(bool bNewParryWindowOpen);
-	void ApplyParrySuccessFeedback(const FCombatDamageInfo& DamageInfo);
+	void CacheOwnerComponents();
+	void HandlePlayerAttackFinished();
+	void HandlePlayerDodgeFinished();
+	void HandlePlayerParryFinished();
+	void HandlePlayerDefenseInvincibilityChanged();
+	void HandlePlayerHitReactionFinished();
+	void HandlePlayerDeathMontageFinished();
+	void HandlePlayerReactionInvincibilityChanged();
 	
 private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> LightAttackMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> HeavyAttackMontage;
-	
-	UPROPERTY()
-	TObjectPtr<UAnimMontage> CurrentAttackMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	float AttackPlayRate = 1.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> DodgeMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
-	float DodgePlayRate = 1.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
-	float DodgeStrength = 900.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
-	float DodgeDuration = 0.45f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Dodge", meta = (AllowPrivateAccess = "true"))
-	float DodgeInvincibleDuration = 0.25f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCombatAttackData> LightAttackData;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCombatAttackData> HeavyAttackData;
-	
-	UPROPERTY()
-	TObjectPtr<UCombatAttackData> CurrentCombatAttackData;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Debug", meta = (AllowPrivateAccess = "true"))
-	bool bDrawAttackTraceDebug = true;
-	
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
 	ECombatActionState CombatActionState = ECombatActionState::Idle;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
-	bool bHitWindowOpen = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
-	bool bDodgeInvincible = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|State", meta = (AllowPrivateAccess = "true"))
-	bool bHitReactionInvincible = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
-	int32 CurrentComboIndex = 0;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
-	bool bComboInputWindowOpen = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Combo", meta = (AllowPrivateAccess = "true"))
-	bool bComboInputBuffered = false;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float HitReactionInvincibleDuration = 0.35f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> FrontHitReactionMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> BackHitReactionMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> LeftHitReactionMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> RightHitReactionMontage;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> CurrentHitReactionMontage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Reaction", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
-	float HitReactionMontagePlayRate = 1.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> DeathMontage;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
-	float DeathMontagePlayRate = 1.0f;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Death", meta = (AllowPrivateAccess = "true"))
-	bool bDeathMontageFinished = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
-	bool bCurrentAttackStaminaCostPaid = false;
-	
-	// Parry
 private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> ParryMontage;
+	UPROPERTY()
+	TObjectPtr<UPlayerAttackComponent> PlayerAttackComponent;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> ParrySuccessMontage;
+	UPROPERTY()
+	TObjectPtr<UPlayerDefenseComponent> PlayerDefenseComponent;
 	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAnimMontage> CurrentParryMontage;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
-	float ParryMontagePlayRate = 1.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.1"))
-	float ParrySuccessMontagePlayRate = 1.0f;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
-	bool bParryWindowOpen = false;
-	
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true"))
-	bool bParrySucceeded = false;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float ParryStaminaCost = 15.0f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry|Feedback", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float ParrySuccessHitStopDuration = 0.08f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", ClampMax = "1.0"))
-	float ParrySuccessHitStopTimeDilation = 0.03f;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry|Feedback", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UCameraShakeBase> ParrySuccessCameraShakeClass;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Parry|Feedback", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
-	float ParrySuccessCameraShakeScale = 1.0f;
-	
-private:
-	FTimerHandle DodgeFallbackTimerHandle;
-	FTimerHandle InvincibilityTimerHandle;
-	
-	FTimerHandle HitReactionInvincibleTimerHandle;
-	
-	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;
+	UPROPERTY()
+	TObjectPtr<UPlayerReactionComponent> PlayerReactionComponent;
 };

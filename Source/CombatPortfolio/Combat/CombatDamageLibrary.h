@@ -7,6 +7,8 @@
 #include "CombatDamageType.h"
 #include "CombatDamageLibrary.generated.h"
 
+struct FCombatAttackEntry;
+
 /**
  * 
  */
@@ -38,4 +40,9 @@ public:
 public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	static void ApplyDamageFeedbackFromDamageInfo(const FCombatDamageInfo& DamageInfo);
+	
+public:
+	static FCombatDamageInfo MakeDamageInfoFromAttackEntry(const FCombatAttackEntry& AttackEntry, const FHitResult& HitResult, AActor* InstigatorActor);
+	static bool TryApplyCombatDamage(const FCombatDamageInfo& DamageInfo);
+	static bool IsDamageBlockedByInvincibility(const AActor* TargetActor);
 };

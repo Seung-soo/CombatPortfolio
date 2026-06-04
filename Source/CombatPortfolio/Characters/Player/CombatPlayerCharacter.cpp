@@ -13,7 +13,11 @@
 #include "CombatPortfolio/CombatPortfolio.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "CombatPortfolio/Components/HitStopComponent.h"
-#include "CombatPortfolio/UI/PlayerHUDWidget.h"
+#include "CombatPortfolio/Components/PlayerAttackComponent.h"
+#include "CombatPortfolio/Components/PlayerDefenseComponent.h"
+#include "CombatPortfolio/Components/PlayerHUDComponent.h"
+#include "CombatPortfolio/Components/PlayerLocomotionComponent.h"
+#include "CombatPortfolio/Components/PlayerReactionComponent.h"
 
 ACombatPlayerCharacter::ACombatPlayerCharacter()
 {
@@ -25,10 +29,8 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
-
-	GetCharacterMovement()->bOrientRotationToMovement = true;
+	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
-	GetCharacterMovement()->MaxWalkSpeed = RunSpeed;
 	GetCharacterMovement()->JumpZVelocity = 700.0f;
 	GetCharacterMovement()->AirControl = 0.35f;
 
@@ -45,6 +47,12 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	
 	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 	
+	PlayerAttackComponent = CreateDefaultSubobject<UPlayerAttackComponent>(TEXT("PlayerAttackComponent"));
+	
+	PlayerDefenseComponent = CreateDefaultSubobject<UPlayerDefenseComponent>(TEXT("PlayerDefenseComponent"));
+	
+	PlayerReactionComponent = CreateDefaultSubobject<UPlayerReactionComponent>(TEXT("PlayerReactionComponent"));
+	
 	StaminaComponent = CreateDefaultSubobject<UStaminaComponent>(TEXT("StaminaComponent"));
 	
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
@@ -52,6 +60,10 @@ ACombatPlayerCharacter::ACombatPlayerCharacter()
 	LockOnComponent = CreateDefaultSubobject<ULockOnComponent>(TEXT("LockOnComponent"));
 	
 	HitStopComponent = CreateDefaultSubobject<UHitStopComponent>(TEXT("HitStopComponent"));
+	
+	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
+	
+	PlayerLocomotionComponent = CreateDefaultSubobject<UPlayerLocomotionComponent>(TEXT("PlayerLocomotionComponent"));
 }
 
 void ACombatPlayerCharacter::DebugApplyDamageToPlayer(float DamageAmount)
@@ -63,7 +75,7 @@ void ACombatPlayerCharacter::DebugApplyDamageToPlayer(float DamageAmount)
 	
 	if (nullptr != CombatComponent && true == CombatComponent->IsInvincible())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Debug damage blocked: Player is invincible"));
+		UE_LOG(LogCombatPortfolio, Log, TEXT("Debug damage blocked: Player is invincible"));
 		
 		if (nullptr != GEngine)
 		{
@@ -88,7 +100,6 @@ void ACombatPlayerCharacter::BeginPlay()
 	if (nullptr != StaminaComponent)
 	{
 		StaminaComponent->OnStaminaDepleted.AddDynamic(this, &ACombatPlayerCharacter::HandleStaminaDepleted);
-		StaminaComponent->OnStaminaChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleStaminaChanged);
 	}
 	
 	if (nullptr != HealthComponent)
@@ -102,26 +113,22 @@ void ACombatPlayerCharacter::BeginPlay()
 	{
 		LockOnComponent->OnLockOnTargetChanged.AddDynamic(this, &ACombatPlayerCharacter::HandleLockOnTargetChanged);
 	}
-	
-	CreatePlayerHUD();
-	InitializePlayerHUD();
-	
-	ApplyRotationMode();
-	UpdateMovementState();
-	UpdateMovementSpeed();
-	
+
 	UpdateCharacterTickEnabled();
 }
 
 void ACombatPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->UpdateLockOnRotation(DeltaTime);
+	}
 
-	UpdateLockOnRotation(DeltaTime);
 	PrintMovementDebug();
 }
 
-// Called to bind functionality to input
 void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -130,7 +137,7 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 
 	if (nullptr == EnhancedInputComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("PlayerInputComponent is not EnhancedInputComponent"));
+		UE_LOG(LogCombatPortfolio, Error, TEXT("PlayerInputComponent is not EnhancedInputComponent"));
 		return;
 	}
 
@@ -193,226 +200,68 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 
 void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 {
-	if (nullptr != CombatComponent)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		if (true == CombatComponent->IsDead() || 
-			true == CombatComponent->IsHitReacting() ||
-			true == CombatComponent->IsParrying())
-		{
-			return;
-		}
+		PlayerLocomotionComponent->Move(Value);
 	}
-	
-	const FVector2D MovementVector = Value.Get<FVector2D>();
-	
-	if (false == MovementVector.IsNearlyZero())
-	{
-		LastMovementInputVector = MovementVector;
-	}
-
-	if (nullptr == Controller)
-	{
-		return;
-	}
-
-	const FRotator ControlRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
-
-	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-	AddMovementInput(ForwardDirection, MovementVector.Y);
-	AddMovementInput(RightDirection, MovementVector.X);
 }
 
 void ACombatPlayerCharacter::StopMove()
 {
-	LastMovementInputVector = FVector2D::ZeroVector;
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->StopMove();
+	}
 }
 
 void ACombatPlayerCharacter::Look(const FInputActionValue& Value)
 {
-	const FVector2D LookAxisVector = Value.Get<FVector2D>();
-
-	AddControllerYawInput(LookAxisVector.X * LookSensitivityX);
-	AddControllerPitchInput(-LookAxisVector.Y * LookSensitivityY);
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->Look(Value);
+	}
 }
 
 void ACombatPlayerCharacter::StartWalk()
 {
-	bWantsToWalk = true;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->StartWalk();
+	}
 }
 
 void ACombatPlayerCharacter::StopWalk()
 {
-	bWantsToWalk = false;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->StopWalk();
+	}
 }
 
 void ACombatPlayerCharacter::StartSprint()
 {
-	if (CombatComponent != nullptr)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		if (true == CombatComponent->IsDead() || 
-			true == CombatComponent->IsHitReacting() ||
-			true == CombatComponent->IsParrying())
-		{
-			return;
-		}
+		PlayerLocomotionComponent->StartSprint();
 	}
-	
-	if (true == IsCombatAttacking() || true == IsCombatDodging())
-	{
-		return;
-	}
-	
-	if (nullptr == StaminaComponent)
-	{
-		return;
-	}
-	
-	if (false == StaminaComponent->HasEnoughStamina(MinStaminaToStartSprint))
-	{
-		return;
-	}
-	
-	if (false == StaminaComponent->StartStaminaDrain(SprintStaminaDrainRate))
-	{
-		return;
-	}
-	
-	bWantsToSprint = true;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
 }
 
 void ACombatPlayerCharacter::StopSprint()
 {
-	bWantsToSprint = false;
-	
-	if (nullptr != StaminaComponent)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		StaminaComponent->StopStaminaDrain();
+		PlayerLocomotionComponent->StopSprint();
 	}
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
 }
 
 void ACombatPlayerCharacter::ToggleRotationMode()
 {
-	if (ECombatRotationMode::OrientToMovement == RotationMode)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		SetRotationMode(ECombatRotationMode::Strafe);
-		return;
-	}
-	
-	SetRotationMode(ECombatRotationMode::OrientToMovement);
-}
-
-void ACombatPlayerCharacter::SetRotationMode(ECombatRotationMode NewRotationMode)
-{
-	if (RotationMode == NewRotationMode)
-	{
-		return;
-	}
-	
-	RotationMode = NewRotationMode;
-	ApplyRotationMode();
-}
-
-void ACombatPlayerCharacter::ApplyRotationMode()
-{
-	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-	
-	if (nullptr == MovementComponent)
-	{
-		return;
-	}
-	
-	switch (RotationMode)
-	{
-	case ECombatRotationMode::OrientToMovement:
-		bUseControllerRotationYaw = false;
-		MovementComponent->bOrientRotationToMovement = true;
-		break;
-	case ECombatRotationMode::Strafe:
-		bUseControllerRotationYaw = false;
-		MovementComponent->bOrientRotationToMovement = false;
-		break;
-	default:
-		bUseControllerRotationYaw = false;
-		MovementComponent->bOrientRotationToMovement = true;
-		break;
+		PlayerLocomotionComponent->ToggleRotationMode();
 	}
 }
 
-void ACombatPlayerCharacter::UpdateMovementState()
-{
-	if (true == bWantsToWalk)
-	{
-		MovementState = ECombatMovementState::Walking;
-		return;
-	}
-	
-	if (true == bWantsToSprint)
-	{
-		MovementState = ECombatMovementState::Sprinting;
-		return;
-	}
-	
-	MovementState = ECombatMovementState::Running;
-}
-
-void ACombatPlayerCharacter::UpdateMovementSpeed()
-{
-	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-	
-	if (nullptr == MovementComponent)
-	{
-		return;
-	}
-	
-	if (true == IsCombatParrying())
-	{
-		MovementComponent->MaxWalkSpeed = ParryMoveSpeed;
-		return;
-	}
-	
-	if (true == IsCombatDodging())
-	{
-		MovementComponent->MaxWalkSpeed = DodgeMoveSpeed;
-		return;
-	}
-	
-	if (true == IsCombatAttacking())
-	{
-		MovementComponent->MaxWalkSpeed = AttackMoveSpeed;
-		return;
-	}
-	
-	switch (MovementState)
-	{
-	case ECombatMovementState::Walking:
-		MovementComponent->MaxWalkSpeed = WalkSpeed;
-		break;
-	case ECombatMovementState::Running:
-		MovementComponent->MaxWalkSpeed = RunSpeed;
-		break;
-	case ECombatMovementState::Sprinting:
-		MovementComponent->MaxWalkSpeed = SprintSpeed;
-		break;
-	default:
-		MovementComponent->MaxWalkSpeed = RunSpeed;
-		break;
-	}
-}
 
 void ACombatPlayerCharacter::Attack()
 {
@@ -426,10 +275,10 @@ void ACombatPlayerCharacter::Attack()
 		return;
 	}
 	
-	if (true == CombatComponent->CanStartAttack())
+	if (nullptr != PlayerLocomotionComponent && true == CombatComponent->CanStartAttack())
 	{
-		const FVector AttackDirection = GetAttackDirection();
-		FaceAttackDirection(AttackDirection);
+		const FVector AttackDirection = PlayerLocomotionComponent->GetAttackDirection();
+		PlayerLocomotionComponent->FaceDirection(AttackDirection);
 	}
 	
 	const bool bAttackStarted = CombatComponent->RequestAttack(ECombatAttackInputType::Light);
@@ -439,10 +288,10 @@ void ACombatPlayerCharacter::Attack()
 		return;
 	}
 	
-	bWantsToSprint = false;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopSprintOnly);
+	}
 }
 
 void ACombatPlayerCharacter::Dodge()
@@ -456,30 +305,20 @@ void ACombatPlayerCharacter::Dodge()
 	{
 		return;
 	}
-	
-	if (nullptr == StaminaComponent)
-	{
-		return;
-	}
-	
+
 	if (false == CombatComponent->CanStartDodge())
 	{
 		return;
 	}
 	
-	if (false == StaminaComponent->TrySpendStamina(DodgeStaminaCost))
-	{
-		return;
-	}
-	
-	const FVector DodgeDirection = GetDodgeDirection();
+	const FVector DodgeDirection = nullptr != PlayerLocomotionComponent ? 
+	PlayerLocomotionComponent->GetDodgeDirection() : GetActorForwardVector();
 	
 	DrawDodgeDirectionDebug(DodgeDirection);
 	
-	if (false == DodgeDirection.IsNearlyZero())
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		const FRotator DodgeRotation = DodgeDirection.Rotation();
-		SetActorRotation(FRotator(0.0f, DodgeRotation.Yaw, 0.0f));
+		PlayerLocomotionComponent->FaceDirection(DodgeDirection);
 	}
 	
 	const bool bDodgeStarted = CombatComponent->RequestDodge(DodgeDirection);
@@ -488,11 +327,11 @@ void ACombatPlayerCharacter::Dodge()
 	{
 		return;
 	}
-	
-	bWantsToSprint = false;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
+
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopSprintOnly);
+	}
 }
 
 void ACombatPlayerCharacter::HeavyAttack()
@@ -507,10 +346,10 @@ void ACombatPlayerCharacter::HeavyAttack()
 		return;
 	}
 	
-	if (true == CombatComponent->CanStartAttack())
+	if (nullptr != PlayerLocomotionComponent && true == CombatComponent->CanStartAttack())
 	{
-		const FVector AttackDirection = GetAttackDirection();
-		FaceAttackDirection(AttackDirection);
+		const FVector AttackDirection = PlayerLocomotionComponent->GetAttackDirection();
+		PlayerLocomotionComponent->FaceDirection(AttackDirection);
 	}
 	
 	const bool bAttackStarted = CombatComponent->RequestAttack(ECombatAttackInputType::Heavy);
@@ -520,10 +359,10 @@ void ACombatPlayerCharacter::HeavyAttack()
 		return;
 	}
 	
-	bWantsToSprint = false;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopSprintOnly);
+	}
 }
 
 void ACombatPlayerCharacter::Parry()
@@ -545,28 +384,10 @@ void ACombatPlayerCharacter::Parry()
 		return;
 	}
 	
-	bWantsToSprint = false;
-	StopMove();
-	
-	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-	
-	if (nullptr != MovementComponent)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		MovementComponent->StopMovementImmediately();
+		PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopMovementImmediately);
 	}
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
-}
-
-bool ACombatPlayerCharacter::IsCombatDodging() const
-{
-	return nullptr != CombatComponent && true == CombatComponent->IsDodging();
-}
-
-bool ACombatPlayerCharacter::IsCombatParrying() const
-{
-	return nullptr != CombatComponent && true == CombatComponent->IsParrying();
 }
 
 void ACombatPlayerCharacter::ToggleLockOn()
@@ -579,258 +400,11 @@ void ACombatPlayerCharacter::ToggleLockOn()
 	LockOnComponent->ToggleLockOn();
 }
 
-void ACombatPlayerCharacter::UpdateLockOnRotation(float DeltaSeconds)
-{
-	if (false == IsLockedOn())
-	{
-		return;
-	}
-	
-	if (nullptr == LockOnComponent)
-	{
-		return;
-	}
-	
-	AActor* TargetActor = LockOnComponent->GetLockOnTarget();
-	
-	if (nullptr == TargetActor)
-	{
-		return;
-	}
-	
-	const FVector ActorLocation = GetActorLocation();
-	const FVector TargetLocation = TargetActor->GetActorLocation();
-	
-	FVector ToTarget = TargetLocation - ActorLocation;
-	ToTarget.Z = 0.0f;
-	
-	if (true == ToTarget.IsNearlyZero())
-	{
-		return;
-	}
-	
-	const FRotator TargetRotation = ToTarget.Rotation();
-	const FRotator CurrentRotation = GetActorRotation();
-	
-	const FRotator NewRotation = FMath::RInterpTo(CurrentRotation, FRotator(0.0f, TargetRotation.Yaw, 0.0f), DeltaSeconds, LockOnRotationInterpSpeed);
-	
-	SetActorRotation(NewRotation);
-}
-
-bool ACombatPlayerCharacter::IsLockedOn() const
-{
-	return nullptr != LockOnComponent && true == LockOnComponent->IsLockedOn();
-}
-
-FVector ACombatPlayerCharacter::GetAttackDirection() const
-{
-	if (true == IsLockedOn())
-	{
-		const FVector LockOnDirection = GetLockOnAttackDirection();
-		
-		if (false == LockOnDirection.IsNearlyZero())
-		{
-			return LockOnDirection;
-		}
-	}
-	
-	const FVector MovementInputDirection = GetMovementInputAttackDirection();
-	
-	if (false == MovementInputDirection.IsNearlyZero())
-	{
-		return MovementInputDirection;
-	}
-	
-	const FVector CameraForwardDirection = GetCameraForwardAttackDirection();
-	
-	if (false == CameraForwardDirection.IsNearlyZero())
-	{
-		return CameraForwardDirection;
-	}
-	
-	return GetActorForwardVector().GetSafeNormal2D();
-}
-
-FVector ACombatPlayerCharacter::GetLockOnAttackDirection() const
-{
-	return GetPlanarDirectionToLockOnTarget();
-}
-
-FVector ACombatPlayerCharacter::GetMovementInputAttackDirection() const
-{
-	if (true == LastMovementInputVector.IsNearlyZero())
-	{
-		return FVector::ZeroVector;
-	}
-	
-	if (nullptr == Controller)
-	{
-		return FVector::ZeroVector;
-	}
-	
-	const FRotator ControlRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
-	
-	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-	
-	const FVector AttackDirection = ForwardDirection * LastMovementInputVector.Y + RightDirection * LastMovementInputVector.X;
-	
-	return AttackDirection.GetSafeNormal2D();
-}
-
-FVector ACombatPlayerCharacter::GetCameraForwardAttackDirection() const
-{
-	if (nullptr == Controller)
-	{
-		return FVector::ZeroVector;
-	}
-	
-	const FRotator ControlRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
-	
-	return FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X).GetSafeNormal2D();
-}
-
-void ACombatPlayerCharacter::FaceAttackDirection(const FVector& AttackDirection)
-{
-	const FVector PlanarDirection = AttackDirection.GetSafeNormal2D();
-	
-	if (true == PlanarDirection.IsNearlyZero())
-	{
-		return;
-	}
-	
-	const FRotator TargetRotation = PlanarDirection.Rotation();
-	SetActorRotation(FRotator(0.0f, TargetRotation.Yaw, 0.0f));
-}
-
 void ACombatPlayerCharacter::UpdateCharacterTickEnabled()
 {
-	const bool bShouldTick = true == bShowMovementDebug || true == IsLockedOn();
+	const bool bShouldTick = true == bShowMovementDebug || (nullptr != PlayerLocomotionComponent && true == PlayerLocomotionComponent->IsLockedOn());
 	
 	SetActorTickEnabled(bShouldTick);
-}
-
-void ACombatPlayerCharacter::CreatePlayerHUD()
-{
-	if (nullptr == PlayerHUDWidgetClass)
-	{
-		UE_LOG(LogCombatPortfolio, Warning, TEXT("PlayerHUDWidgetClass is not assigned."));
-		return;
-	}
-	
-	APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	
-	if (nullptr == PlayerController)
-	{
-		return;
-	}
-	
-	PlayerHUDWidget = CreateWidget<UPlayerHUDWidget>(PlayerController, PlayerHUDWidgetClass);
-	
-	if (nullptr == PlayerHUDWidget)
-	{
-		return;
-	}
-	
-	PlayerHUDWidget->AddToViewport();
-}
-
-void ACombatPlayerCharacter::InitializePlayerHUD()
-{
-	if (nullptr == PlayerHUDWidget)
-	{
-		return;
-	}
-	
-	if (nullptr == HealthComponent || nullptr == StaminaComponent)
-	{
-		return;
-	}
-	
-	PlayerHUDWidget->InitializeHUD(
-		HealthComponent->GetCurrentHealth(),
-		HealthComponent->GetMaxHealth(),
-		StaminaComponent->GetCurrentStamina(),
-		StaminaComponent->GetMaxStamina()
-	);
-	
-}
-
-FVector ACombatPlayerCharacter::GetDodgeDirection() const
-{
-	if (true == IsLockedOn())
-	{
-		return GetLockOnDodgeDirection();
-	}
-	
-	return GetFreeDodgeDirection();
-}
-
-FVector ACombatPlayerCharacter::GetFreeDodgeDirection() const
-{
-	if (nullptr == Controller)
-	{
-		return GetActorForwardVector();
-	}
-	
-	const FRotator ControlRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
-	
-	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-	
-	FVector DodgeDirection = ForwardDirection * LastMovementInputVector.Y + RightDirection * LastMovementInputVector.X;
-	
-	if (true == DodgeDirection.IsNearlyZero())
-	{
-		DodgeDirection = GetActorForwardVector();
-	}
-	
-	return DodgeDirection.GetSafeNormal();
-}
-
-FVector ACombatPlayerCharacter::GetLockOnDodgeDirection() const
-{
-	const FVector ForwardToTarget = GetPlanarDirectionToLockOnTarget();
-	
-	if (true == ForwardToTarget.IsNearlyZero())
-	{
-		return GetActorForwardVector();
-	}
-	
-	const FVector RightToTarget = FVector::CrossProduct(FVector::UpVector, ForwardToTarget).GetSafeNormal();
-	
-	FVector DodgeDirection = ForwardToTarget * LastMovementInputVector.Y + RightToTarget * LastMovementInputVector.X;
-	
-	if (true == DodgeDirection.IsNearlyZero())
-	{
-		DodgeDirection = -ForwardToTarget;
-	}
-	
-	return DodgeDirection.GetSafeNormal();
-}
-
-FVector ACombatPlayerCharacter::GetPlanarDirectionToLockOnTarget() const
-{
-	if (nullptr == LockOnComponent)
-	{
-		
-		return FVector::ZeroVector;
-	}
-	
-	AActor* TargetActor = LockOnComponent->GetLockOnTarget();
-	
-	if (nullptr == TargetActor)
-	{
-		return FVector::ZeroVector;
-	}
-	
-	FVector ToTarget = TargetActor->GetActorLocation() - GetActorLocation();
-	ToTarget.Z = 0.0f;
-	
-	return ToTarget.GetSafeNormal();
 }
 
 FString ACombatPlayerCharacter::GetInvincibilityDebugString() const
@@ -860,40 +434,25 @@ FString ACombatPlayerCharacter::GetLockOnDebugString() const
 	return TargetActor->GetName();
 }
 
-bool ACombatPlayerCharacter::IsCombatAttacking() const
-{
-	return nullptr != CombatComponent && true == CombatComponent->IsAttacking();
-}
-
 void ACombatPlayerCharacter::HandleCombatActionStateChanged()
 {
-	UpdateMovementState();
-	UpdateMovementSpeed();
+	if (nullptr != PlayerLocomotionComponent)
+	{
+		PlayerLocomotionComponent->UpdateMovementState();
+		PlayerLocomotionComponent->UpdateMovementSpeed();
+	}
 }
 
 void ACombatPlayerCharacter::HandleStaminaDepleted()
 {
-	bWantsToSprint = false;
-	
-	UpdateMovementState();
-	UpdateMovementSpeed();
-}
-
-void ACombatPlayerCharacter::HandleStaminaChanged(float CurrentStamina, float MaxStamina, float Delta)
-{
-	if (nullptr != PlayerHUDWidget)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		PlayerHUDWidget->SetStamina(CurrentStamina, MaxStamina);
+		PlayerLocomotionComponent->StopSprint();
 	}
 }
 
 void ACombatPlayerCharacter::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
 {
-	if (nullptr != PlayerHUDWidget)
-	{
-		PlayerHUDWidget->SetHealth(CurrentHealth, MaxHealth);
-	}
-	
 	UE_LOG(LogCombatPortfolio, Log, TEXT("Player Health Changed: %.1f / %.1f | Delta: %.1f"), CurrentHealth, MaxHealth, Delta);
 	
 	if (0.0f > Delta && nullptr != GEngine)
@@ -920,19 +479,15 @@ void ACombatPlayerCharacter::HandleDamaged(const FCombatDamageInfo& DamageInfo)
 	
 	const bool bHitReactionStarted = CombatComponent->RequestHitReaction(DamageInfo);
 	
-	if (true == bHitReactionStarted)
+	if (true == bHitReactionStarted && nullptr != PlayerLocomotionComponent)
 	{
-		bWantsToSprint = false;
-		UpdateMovementState();
-		UpdateMovementSpeed();
+		PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopSprintOnly);
 	}
 }
 
 void ACombatPlayerCharacter::HandleDeath()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Player died"));
-	
-	bWantsToSprint = false;
+	UE_LOG(LogCombatPortfolio, Warning, TEXT("Player died"));
 	
 	StopMove();
 	
@@ -954,26 +509,32 @@ void ACombatPlayerCharacter::HandleDeath()
 		MovementComponent->DisableMovement();
 	}
 	
-	UpdateMovementState();
-	UpdateMovementSpeed();
-	
-	if (nullptr != PlayerHUDWidget)
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		PlayerHUDWidget->ShowDeathMessage();
+		PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopMovementImmediately);
+	}
+	
+	if (nullptr != PlayerHUDComponent)
+	{
+		PlayerHUDComponent->ShowDeathMessage();
 	}
 }
 
 void ACombatPlayerCharacter::HandleLockOnTargetChanged()
 {
-	if (true == IsLockedOn())
+	if (nullptr != PlayerLocomotionComponent)
 	{
-		SetRotationMode(ECombatRotationMode::Strafe);
-	}
-	else
-	{
-		SetRotationMode(ECombatRotationMode::OrientToMovement);
-	}
+		if (true == PlayerLocomotionComponent->IsLockedOn())
+		{
+			PlayerLocomotionComponent->SetRotationMode(ECombatRotationMode::Strafe);
+		}
+		else
+		{
+			PlayerLocomotionComponent->SetRotationMode(ECombatRotationMode::OrientToMovement);
+		}
 	
+	}
+
 	UpdateCharacterTickEnabled();
 }
 
@@ -1091,36 +652,9 @@ void ACombatPlayerCharacter::PrintMovementDebug() const
 		return;
 	}
 	
-	FString MovementStateString = TEXT("Unknown");
+	FString MovementStateString = nullptr != PlayerLocomotionComponent ? PlayerLocomotionComponent->GetMovementStateDebugString() : TEXT("None");
 	
-	switch (MovementState)
-	{
-	case ECombatMovementState::Walking:
-		MovementStateString = TEXT("Walking");
-		break;
-	case ECombatMovementState::Running:
-		MovementStateString = TEXT("Running");
-		break;
-	case ECombatMovementState::Sprinting:
-		MovementStateString = TEXT("Sprinting");
-		break;
-	default:
-		break;
-	}
-	
-	FString RotationModeString = TEXT("Unknown");
-	
-	switch (RotationMode)
-	{
-	case ECombatRotationMode::OrientToMovement:
-		RotationModeString = TEXT("OrientToMovement");
-		break;
-	case ECombatRotationMode::Strafe:
-		RotationModeString = TEXT("Strafe");
-		break;
-	default:
-		break;
-	}
+	FString RotationModeString = nullptr != PlayerLocomotionComponent ? PlayerLocomotionComponent->GetRotationModeDebugString() : TEXT("None");
 	
 	const FVector Velocity = GetVelocity();
 	const float GroundSpeed = FVector(Velocity.X, Velocity.Y, 0.0f).Size();
