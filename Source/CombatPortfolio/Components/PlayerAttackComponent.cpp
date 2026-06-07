@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include "StaminaComponent.h"
 #include "CombatPortfolio/CombatPortfolio.h"
+#include "CombatPortfolio/Characters/Enemy/CombatEnemyBase.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "GameFramework/Character.h"
 
@@ -113,6 +114,42 @@ bool UPlayerAttackComponent::StartAttack(ECombatAttackInputType AttackInputType)
 	
 	return true;
 }
+
+bool UPlayerAttackComponent::StartCriticalAttack(AActor* CriticalTargetActor)
+{
+	ACombatEnemyBase* CriticalTarget = Cast<ACombatEnemyBase>(CriticalTargetActor);
+	
+	if (nullptr == CriticalTarget)
+	{
+		return false;
+	}
+	
+	if (false == CriticalTarget->IsCriticalAttackAvailable())
+	{
+		return false;
+	}
+	
+	CurrentCriticalTarget = CriticalTarget;
+	
+	const bool bAttackStarted = StartAttack(ECombatAttackInputType::Critical);
+	
+	if (false == bAttackStarted)
+	{
+		CurrentCriticalTarget.Reset();
+		return false;
+	}
+	
+	if (false == CriticalTarget->ConsumeCriticalAttackOpportunity(GetOwner()))
+	{
+		CancelAttack();
+		CurrentCriticalTarget.Reset();
+		return false;
+	}
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("Critical Attack started. Target: %s"), *GetNameSafe(CriticalTarget))
+	
+	return true;
+};
 
 bool UPlayerAttackComponent::TryBufferComboInput()
 {
@@ -271,6 +308,7 @@ void UPlayerAttackComponent::FinishAttack()
 	
 	CurrentAttackMontage = nullptr;
 	CurrentCombatAttackData = nullptr;
+	CurrentCriticalTarget.Reset();
 	
 	ResetComboState();
 	
@@ -514,6 +552,11 @@ void UPlayerAttackComponent::ApplyDamageToHitActor(const FHitResult& HitResult)
 		return;
 	}
 	
+	if (true == CurrentCriticalTarget.IsValid() && HitActor != CurrentCriticalTarget.Get())
+	{
+		return;
+	}
+	
 	const FCombatAttackEntry* CurrentAttackData = GetCurrentComboAttackData();
 	
 	if (nullptr == CurrentAttackData)
@@ -614,6 +657,8 @@ UCombatAttackData* UPlayerAttackComponent::GetAttackDataByInputType(ECombatAttac
 		return LightAttackData;
 	case ECombatAttackInputType::Heavy:
 		return HeavyAttackData;
+	case ECombatAttackInputType::Critical:
+		return CriticalAttackData;
 	default:
 		return nullptr;
 	}
@@ -627,6 +672,8 @@ UAnimMontage* UPlayerAttackComponent::GetAttackMontageByInputType(ECombatAttackI
 		return LightAttackMontage;
 	case ECombatAttackInputType::Heavy:
 		return HeavyAttackMontage;
+	case ECombatAttackInputType::Critical:
+		return CriticalAttackMontage;
 	default:
 		return nullptr;
 	}

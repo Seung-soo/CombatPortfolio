@@ -1,9 +1,8 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "TimerManager.h"
 #include "CombatEnemyBase.generated.h"
 
 class UStaticMeshComponent;
@@ -19,12 +18,11 @@ class COMBATPORTFOLIO_API ACombatEnemyBase : public ACharacter
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this pawn's properties
 	ACombatEnemyBase();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	
 protected:
 	UFUNCTION()
@@ -34,6 +32,8 @@ protected:
 	virtual void HandleDeath();
 	
 	virtual void ApplyDeathState();
+	
+
 	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
@@ -54,13 +54,30 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UHitStopComponent> HitStopComponent;
 	
+protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Critical", meta = (AllowPrivateAccess = true, ClampMin = "0.0"))
+	float CriticalAttackWindowDuration = 2.0f;
+	
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Critical", meta = (AllowPrivateAccess = true))
+	bool bCriticalAttackAvailable = false;
+	
+	FTimerHandle CriticalAttackWindowTimerHandle;
 
 public:
 	virtual bool RequestParriedReaction();
+	
+	virtual void OpenCriticalAttackWindow();
 
 public:
 	UHealthComponent* GetHealthComponent() const;
 	UEnemyAttackComponent* GetEnemyAttackComponent() const;
 	ULockOnMarkerComponent* GetLockOnMarkerComponent() const;
 	UEnemyHealthBarComponent* GetEnemyHealthBarComponent() const;
+	
+public:
+	bool ConsumeCriticalAttackOpportunity(AActor* AttackerActor);
+	bool IsCriticalAttackAvailable() const;
+	
+private:
+	void CloseCriticalAttackWindow();
 };

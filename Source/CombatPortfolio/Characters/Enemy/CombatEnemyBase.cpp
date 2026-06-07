@@ -3,6 +3,7 @@
 
 #include "CombatEnemyBase.h"
 
+#include "CombatPortfolio/CombatPortfolio.h"
 #include "CombatPortfolio/AI/CombatEnemyAIController.h"
 #include "CombatPortfolio/Components/EnemyAttackComponent.h"
 #include "CombatPortfolio/Components/EnemyHealthBarComponent.h"
@@ -74,6 +75,18 @@ void ACombatEnemyBase::BeginPlay()
 	}
 }
 
+void ACombatEnemyBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(CriticalAttackWindowTimerHandle);
+	}
+	
+	Super::EndPlay(EndPlayReason);
+}
+
 void ACombatEnemyBase::HandleHealthChanged(float CurrentHealth, float MaxHealth, float Delta)
 {
 	if (nullptr != EnemyHealthBarComponent)
@@ -93,6 +106,8 @@ void ACombatEnemyBase::HandleDeath()
 
 void ACombatEnemyBase::ApplyDeathState()
 {
+	CloseCriticalAttackWindow();
+	
 	UCapsuleComponent* EnemyCapsuleComponent = GetCapsuleComponent();
 	
 	if (nullptr != EnemyCapsuleComponent)
@@ -136,6 +151,33 @@ bool ACombatEnemyBase::RequestParriedReaction()
 	return false;
 }
 
+void ACombatEnemyBase::OpenCriticalAttackWindow()
+{
+	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
+	{
+		return;
+	}
+	
+	bCriticalAttackAvailable = true;
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(CriticalAttackWindowTimerHandle);
+		
+		World->GetTimerManager().SetTimer(
+			CriticalAttackWindowTimerHandle,
+			this,
+			&ACombatEnemyBase::CloseCriticalAttackWindow,
+			CriticalAttackWindowDuration,
+			false
+		);
+	}
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("%s Critical window opened. Duration: %.2f"), *GetName(), CriticalAttackWindowDuration);
+}
+
 UHealthComponent* ACombatEnemyBase::GetHealthComponent() const
 {
 	return HealthComponent.Get();
@@ -154,4 +196,43 @@ ULockOnMarkerComponent* ACombatEnemyBase::GetLockOnMarkerComponent() const
 UEnemyHealthBarComponent* ACombatEnemyBase::GetEnemyHealthBarComponent() const
 {
 	return EnemyHealthBarComponent.Get();
+}
+
+bool ACombatEnemyBase::ConsumeCriticalAttackOpportunity(AActor* AttackerActor)
+{
+	if (false == bCriticalAttackAvailable)
+	{
+		return false;
+	}
+	
+	CloseCriticalAttackWindow();
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("%s Critical opportunity consumed by %s"),
+		*GetName(), *GetNameSafe(AttackerActor));
+	
+	return true;
+}
+
+bool ACombatEnemyBase::IsCriticalAttackAvailable() const
+{
+	return bCriticalAttackAvailable;
+}
+
+void ACombatEnemyBase::CloseCriticalAttackWindow()
+{
+	if (false == bCriticalAttackAvailable)
+	{
+		return;
+	}
+	
+	bCriticalAttackAvailable = false;
+	
+	UWorld* World = GetWorld();
+	
+	if (nullptr != World)
+	{
+		World->GetTimerManager().ClearTimer(CriticalAttackWindowTimerHandle);
+	}
+	
+	UE_LOG(LogCombatPortfolio, Log, TEXT("%s Critical window closed."), *GetName());
 }

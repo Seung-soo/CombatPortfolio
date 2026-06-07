@@ -61,6 +61,30 @@ bool UCombatComponent::RequestAttack(ECombatAttackInputType AttackInputType)
 	return false;
 }
 
+bool UCombatComponent::RequestCriticalAttack(AActor* CriticalTargetActor)
+{
+	if (nullptr == PlayerAttackComponent)
+	{
+		return false;
+	}
+	
+	if (ECombatActionState::Idle != CombatActionState)
+	{
+		return false;
+	}
+	
+	const bool bAttackStarted = PlayerAttackComponent->StartCriticalAttack(CriticalTargetActor);
+	
+	if (false == bAttackStarted)
+	{
+		return false;
+	}
+	
+	SetCombatActionState(ECombatActionState::Attacking);
+	
+	return true;
+}
+
 bool UCombatComponent::RequestDodge(const FVector& DodgeDirection)
 {
 	if (nullptr == PlayerDefenseComponent)

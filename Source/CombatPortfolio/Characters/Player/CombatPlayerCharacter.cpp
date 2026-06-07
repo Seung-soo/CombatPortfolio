@@ -11,6 +11,7 @@
 #include "CombatPortfolio/Components/LockOnComponent.h"
 #include "DrawDebugHelpers.h"
 #include "CombatPortfolio/CombatPortfolio.h"
+#include "CombatPortfolio/Characters/Enemy/CombatEnemyBase.h"
 #include "CombatPortfolio/Combat/CombatDamageLibrary.h"
 #include "CombatPortfolio/Components/HitStopComponent.h"
 #include "CombatPortfolio/Components/PlayerAttackComponent.h"
@@ -275,6 +276,31 @@ void ACombatPlayerCharacter::Attack()
 		return;
 	}
 	
+	ACombatEnemyBase* CriticalTarget = GetCriticalAttackTarget();
+	
+	if (nullptr != CriticalTarget)
+	{
+		if (nullptr != PlayerLocomotionComponent && true == CombatComponent->CanStartAttack())
+		{
+			const FVector CriticalDirection = (CriticalTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+			PlayerLocomotionComponent->FaceDirection(CriticalDirection);
+		}
+		
+		const bool bCriticalAttackStarted = CombatComponent->RequestCriticalAttack(CriticalTarget);
+		
+		if (false == bCriticalAttackStarted)
+		{
+			return;
+		}
+		
+		if (nullptr != PlayerLocomotionComponent)
+		{
+			PlayerLocomotionComponent->HandleCombatActionStarted(EPlayerCombatMovementCleanupMode::StopSprintOnly);
+		}
+		
+		return;
+	}
+	
 	if (nullptr != PlayerLocomotionComponent && true == CombatComponent->CanStartAttack())
 	{
 		const FVector AttackDirection = PlayerLocomotionComponent->GetAttackDirection();
@@ -405,6 +431,28 @@ void ACombatPlayerCharacter::UpdateCharacterTickEnabled()
 	const bool bShouldTick = true == bShowMovementDebug || (nullptr != PlayerLocomotionComponent && true == PlayerLocomotionComponent->IsLockedOn());
 	
 	SetActorTickEnabled(bShouldTick);
+}
+
+ACombatEnemyBase* ACombatPlayerCharacter::GetCriticalAttackTarget() const
+{
+	if (nullptr == LockOnComponent)
+	{
+		return nullptr;
+	}
+	
+	ACombatEnemyBase* LockedEnemy = Cast<ACombatEnemyBase>(LockOnComponent->GetLockOnTarget());
+	
+	if (nullptr == LockedEnemy)
+	{
+		return nullptr;
+	}
+	
+	if (false == LockedEnemy->IsCriticalAttackAvailable())
+	{
+		return nullptr;
+	}
+	
+	return LockedEnemy;
 }
 
 FString ACombatPlayerCharacter::GetInvincibilityDebugString() const

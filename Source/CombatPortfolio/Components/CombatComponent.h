@@ -41,6 +41,7 @@ protected:
 
 public:	
 	bool RequestAttack(ECombatAttackInputType AttackInputType);
+	bool RequestCriticalAttack(AActor* CriticalTargetActor);
 	bool RequestDodge(const FVector& DodgeDirection);
 	bool RequestDeath();
 	bool RequestParry();

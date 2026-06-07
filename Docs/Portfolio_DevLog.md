@@ -1308,3 +1308,62 @@ Enemy attack state completion is changed from timer-based handling to attack mon
 - Heavy attack is not part of the light combo chain.
 - Heavy attack does not use combo input window.
 - Data-driven attack configuration allows light and heavy attacks to share execution code while using different combat values.
+
+## Episode 47
+
+### Goal
+
+짧은 Parry Window 안에서 적 공격을 받아쳐 데미지를 무효화하고, 적 공격을 취소시키는 기본 Parry 시스템을 구현한다.
+
+### Completed
+
+- Added Parry input action
+- Added `Parrying` combat state
+- Added parry request flow to `UCombatComponent`
+- Added parry montage playback
+- Added parry window controlled by AnimNotifyState
+- Added parry success validation before damage application
+- Prevented damage when parry succeeds
+- Added parry success handling
+- Canceled enemy attack on successful parry
+- Added enemy parried reaction entry point
+- Added parry success hit stop and camera feedback
+- Cleared parry state on montage end, interruption, and death
+
+### Technical Notes
+
+- Parry is not treated as invincibility.
+- Parry is a timing-based counter window.
+- Parry validation happens before damage application.
+- Parry Window is animation-driven through AnimNotifyState.
+- Enemy attack cancellation and parried reaction are separated from health logic.
+
+
+## Episode 48
+
+### Goal
+
+Parry 성공 후 적에게 짧은 Critical Attack 기회를 부여하고, 플레이어가 해당 시간 안에 공격 입력을 하면 강력한 Critical Attack을 실행하도록 확장한다.
+
+### Completed
+
+- Added critical attack availability state to melee enemy
+- Opened critical attack window after successful parry
+- Added critical attack window timeout
+- Added critical target validation
+- Added critical attack target search from player attack input
+- Added critical attack data asset
+- Added critical attack request flow
+- Added critical attack montage playback
+- Added critical hit notify flow
+- Applied critical damage through `FCombatDamageInfo`
+- Closed critical window after critical attack starts
+- Cleared critical state on enemy death
+
+### Technical Notes
+
+- Parry success and Critical Attack are separate systems.
+- Critical availability belongs to the parried enemy.
+- Critical Attack uses existing `UCombatAttackData` and `FCombatDamageInfo`.
+- Critical damage is applied at a specific montage notify timing.
+- Critical Window prevents repeated critical attacks from a single parry.

@@ -17,6 +17,7 @@ class UPlayerDefenseComponent;
 class UPlayerReactionComponent;
 class UPlayerHUDComponent;
 class UPlayerLocomotionComponent;
+class ACombatEnemyBase;
 struct FInputActionValue;
 
 UCLASS()
@@ -135,6 +136,8 @@ private:
 	void ToggleLockOn();
 	
 	void UpdateCharacterTickEnabled();
+	
+	ACombatEnemyBase* GetCriticalAttackTarget() const;
 	
 	UFUNCTION()
 	void HandleCombatActionStateChanged();

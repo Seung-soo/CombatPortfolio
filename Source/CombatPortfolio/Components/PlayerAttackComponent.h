@@ -10,6 +10,7 @@
 class UAnimMontage;
 class UAnimInstance;
 class UStaminaComponent;
+class ACombatEnemyBase;
 
 UCLASS( ClassGroup=(Combat), meta=(BlueprintSpawnableComponent) )
 class COMBATPORTFOLIO_API UPlayerAttackComponent : public UActorComponent
@@ -25,6 +26,7 @@ protected:
 
 public:	
 	bool StartAttack(ECombatAttackInputType AttackInputType);
+	bool StartCriticalAttack(AActor* CriticalTargetActor);
 	bool TryBufferComboInput();
 	void CancelAttack();
 
@@ -91,6 +93,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> HeavyAttackMontage;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack|Critical", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> CriticalAttackMontage;
+	
 	UPROPERTY()
 	TObjectPtr<UAnimMontage> CurrentAttackMontage;
 	
@@ -102,6 +107,9 @@ private:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCombatAttackData> HeavyAttackData;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Attack", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCombatAttackData> CriticalAttackData;
 	
 	UPROPERTY()
 	TObjectPtr<UCombatAttackData> CurrentCombatAttackData;
@@ -129,4 +137,7 @@ private:
 	
 private:
 	TArray<TWeakObjectPtr<AActor>> HitActorsThisAttack;
+	
+	UPROPERTY()
+	TWeakObjectPtr<ACombatEnemyBase> CurrentCriticalTarget;
 };

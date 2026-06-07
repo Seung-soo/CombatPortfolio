@@ -11,7 +11,8 @@ UENUM(BlueprintType)
 enum class ECombatAttackInputType : uint8
 {
 	Light UMETA(DisplayName = "Light"),
-	Heavy UMETA(DisplayName = "Heavy")
+	Heavy UMETA(DisplayName = "Heavy"),
+	Critical UMETA(DisplayName = "Critical")
 };
 
 USTRUCT(BlueprintType)

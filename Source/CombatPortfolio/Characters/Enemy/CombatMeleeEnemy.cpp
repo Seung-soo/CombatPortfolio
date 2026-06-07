@@ -100,6 +100,7 @@ bool ACombatMeleeEnemy::RequestParriedReaction()
 	}
 	
 	StartParriedReaction();
+	OpenCriticalAttackWindow();
 	
 	return true;
 }
@@ -269,6 +270,12 @@ void ACombatMeleeEnemy::StartHitReaction(const FCombatDamageInfo& DamageInfo)
 	if (nullptr != HealthComponent && true == HealthComponent->IsDead())
 	{
 		return;
+	}
+	
+	if (true == bParriedReacting)
+	{
+		CurrentParriedMontage = nullptr;
+		bParriedReacting = false;
 	}
 	
 	bHitReacting = true;
